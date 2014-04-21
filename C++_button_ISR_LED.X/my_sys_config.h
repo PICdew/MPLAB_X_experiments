@@ -31,7 +31,7 @@ extern "C"
 #define BUTTON_PORT           IOPORT_A
 #define BUTTON_1_PIN          BIT_6
 #define BUTTON_2_PIN          BIT_7
-const unsigned int BUTTON_READ_DELAY = 200;
+const unsigned int BUTTON_READ_DELAY = 500;
 
 
 

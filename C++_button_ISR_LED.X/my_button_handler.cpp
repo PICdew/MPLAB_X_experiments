@@ -21,8 +21,9 @@ my_button_handler::my_button_handler()
 
    // configure the pins for LEDs LD1 and LD4 as digital outputs, and clear the
    // bits so that the LEDs start off
-   PORTSetPinsDigitalOut(LED_PORT, LED_1_PIN | LED_2_PIN);
-   PORTClearBits(LED_PORT, LED_1_PIN | LED_2_PIN);
+
+   PORTSetPinsDigitalOut(LED_PORT, LED_1_PIN | BIT_11 | BIT_12 | LED_2_PIN);
+   PORTClearBits(LED_PORT, LED_1_PIN | BIT_11 | BIT_12 | LED_2_PIN);
 }
 
 my_button_handler& my_button_handler::get_instance(void)
@@ -34,40 +35,22 @@ my_button_handler& my_button_handler::get_instance(void)
 
 void my_button_handler::do_the_button_thing(void)
 {
-   // read the buttons, but employ some special delaying operations to prevent
-   // double readings from the processor reading the ports too fast (a simple
-   // delay doesn't work well and often results in ignored presses because most
-   // of the processor's time is spent in dalys)
+   // read the buttons
+
    unsigned int port_state = 0;
    unsigned int button_states = 0;
-   int btn_1_read_delay_soft_ms_timer = 0;
-   int btn_2_read_delay_soft_ms_timer = 0;
 
-   // read the states of the pins feeding in from the buttons
-   port_state = PORTRead(BUTTON_PORT);
-
-   // mask out everything but the button pins
-   button_states = port_state & (BUTTON_1_PIN | BUTTON_2_PIN);
-
-   if (BUTTON_1_PIN == (BUTTON_1_PIN & button_states))
-   {
-      // button 1 pressed
-      if (btn_1_read_delay_soft_ms_timer <= 0)
-      {
-         handle_button_1();
-         btn_1_read_delay_soft_ms_timer = BUTTON_READ_DELAY;
-      }
-   }
-
-   if (BUTTON_2_PIN == (BUTTON_2_PIN & button_states))
-   {
-      // button 2 pressed
-      if (btn_2_read_delay_soft_ms_timer <= 0)
-      {
-         handle_button_2();
-         btn_2_read_delay_soft_ms_timer = BUTTON_READ_DELAY;
-      }
-   }
+   // employ some special delaying operations to prevent double readings from
+   // the processor reading the ports too fast (a simple delay doesn't work
+   // well and often results in ignored presses because most of the processor's
+   // time is spent in dalys)
+   // Note: I am decrementing a timer, and the most intuitive stopping point is
+   // 0.  I am decrementing the timer, and I don't want a decrementing to wrap
+   // around if it goes past 0, so I use a signed integer.  Also, keep the
+   // timer in a handler in a manageable range so it doesn't run the risk of
+   // signed overflow.
+   static int btn_1_read_delay_soft_ms_timer = 0;
+   static int btn_2_read_delay_soft_ms_timer = 0;
 
    // decrement the soft timers if they haven't been reset for too long
    // Note: These are millisecond software (as opposed to hardware ISR) timers,
@@ -82,14 +65,67 @@ void my_button_handler::do_the_button_thing(void)
    diff_ms_read = current_ms_read - previous_ms_read;
    previous_ms_read = current_ms_read;
 
-   if (btn_1_read_delay_soft_ms_timer > 0)
+
+   // read the states of the pins feeding in from the buttons
+   port_state = PORTRead(BUTTON_PORT);
+
+   // mask out everything but the button pins
+   button_states = port_state & (BUTTON_1_PIN | BUTTON_2_PIN);
+
+   if (BUTTON_1_PIN == (BUTTON_1_PIN & button_states))
    {
-      btn_1_read_delay_soft_ms_timer -= diff_ms_read;
+      // button 1 pressed
+      PORTSetBits(LED_PORT, BIT_11);
+
+      if (btn_1_read_delay_soft_ms_timer <= 0)
+      {
+         // the button's handling timer has expired, so do what you need to do
+         // as fast as you can
+         btn_1_read_delay_soft_ms_timer = BUTTON_READ_DELAY;
+         handle_button_1();
+      }
+      else
+      {
+         // button handling timer is still on cooldown, so do nothing
+      }
+   }
+   else
+   {
+      PORTClearBits(LED_PORT, BIT_11);
+
+      // button was either recently released or has not been pressed in a bit,
+      // so do the cooldown thing
+      if (btn_1_read_delay_soft_ms_timer > 0)
+      {
+         btn_1_read_delay_soft_ms_timer -= diff_ms_read;
+      }
+      else
+      {
+         // button handling timer has expired, but button is not pressed, so do
+         // nothing
+      }
    }
 
-   if (btn_2_read_delay_soft_ms_timer > 0)
+   if (BUTTON_2_PIN == (BUTTON_2_PIN & button_states))
    {
-      btn_2_read_delay_soft_ms_timer -= diff_ms_read;
+      PORTSetBits(LED_PORT, BIT_12);
+
+      // button 2 pressed
+      if (btn_2_read_delay_soft_ms_timer <= 0)
+      {
+         btn_2_read_delay_soft_ms_timer = BUTTON_READ_DELAY;
+         handle_button_2();
+      }
+   }
+   else
+   {
+      PORTClearBits(LED_PORT, BIT_12);
+
+      // button was either recently released or has not been pressed in a bit
+      if (btn_2_read_delay_soft_ms_timer > 0)
+      {
+         btn_2_read_delay_soft_ms_timer -= diff_ms_read;
+      }
    }
 }
 

@@ -48,6 +48,6 @@ int main(void)
       // delay a short time so that we don't read a single button press
       // multiple times, assuming of course that the user only intended to
       // quickly push the button once
-      delay_ms(200);
+      //delay_ms(200);
    }
 }

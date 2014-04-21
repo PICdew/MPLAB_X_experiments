@@ -36,7 +36,7 @@ extern "C" void __ISR(_TIMER_2_VECTOR, IPL7SOFT) timer_2_handler(void)
 
 }
 
-extern "C" void __ISR(_TIMER_3_VECTOR, IPL7SOFT) timer_1_handler(void)
+extern "C" void __ISR(_TIMER_3_VECTOR, IPL7SOFT) timer_3_handler(void)
 {
    // turn the LED on (if it is off) or off (if it is on)
 
