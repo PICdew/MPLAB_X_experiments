@@ -1,14 +1,18 @@
-/*
+/* 
  * File:   main.cpp
  * Author: John
  *
  * Created on April 21, 2014, 10:50 AM
  */
 
-#include <peripheral/ports.h>
+// tell the compiler to include these C-based header files without C++ mangling
+extern "C"
+{
 #include <peripheral/timer.h>
 #include <peripheral/int.h>
 #include <peripheral/system.h>
+#include <peripheral/ports.h>
+}
 
 // Configuration Bit settings
 // SYSCLK = 80 MHz (8MHz Crystal / FPLLIDIV * FPLLMUL / FPLLODIV)
@@ -62,6 +66,7 @@ void delayMS(unsigned int milliseconds)
 // the downside is that there are only enough to store for one interrupt, so
 // choose wisely which interrupts need to happen fast fast fast.
 // - AUTO: Let MPLAB X choose between the previous two.
+extern "C"
 void __ISR(_TIMER_1_VECTOR, IPL7AUTO) Timer1Handler(void)
 {
    gMillisecondsInOperation++;
