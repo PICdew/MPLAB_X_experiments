@@ -1,12 +1,12 @@
 /* 
- * File:   button_handlers.h
+ * File:   my_button_handler.h
  * Author: John
  *
  * Created on April 21, 2014, 8:53 AM
  */
 
-#ifndef BUTTON_HANDLERS_H
-#define	BUTTON_HANDLERS_H
+#ifndef MY_BUTTON_HANDLER_H
+#define	MY_BUTTON_HANDLER_H
 
 class my_button_handler
 {
@@ -21,5 +21,5 @@ private:
 };
 
 
-#endif	/* BUTTON_HANDLERS_H */
+#endif	/* MY_BUTTON_HANDLER_H */
 
