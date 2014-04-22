@@ -26,9 +26,6 @@ int main(int argc, char** argv)
    PORTClearBits(LED_PORT,
            LED_1_PIN | LED_2_PIN | LED_3_PIN | LED_4_PIN);
 
-   // initialize the things
-   my_delay_timer_init();
-
    while(1)
    {
       unsigned int switch_1_port_state = PORTRead(SWITCH_1_PORT);
