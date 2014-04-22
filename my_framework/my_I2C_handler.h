@@ -47,11 +47,16 @@ public:
 private:
    my_I2C_handler(void);
    
-   bool module_is_valid(I2C_MODULE modID);
+   bool module_is_valid(I2C_MODULE module_ID);
    bool start_transfer(bool start_with_restart);
    bool stop_transfer(void);
    bool transmit_one_byte(UINT8 data);
    bool transmit_n_bytes(const char *str, unsigned int bytesToSend);
+   bool receive_one_byte(UINT8 *data);
+   bool write_device_register(unsigned int devAddr, unsigned int regAddr, UINT8 dataByte);
+   bool read_device_register(unsigned int devAddr, unsigned int regAddr, UINT8 *dataByte);
+
+
 
    bool m_I2C_has_been_initialized;
    bool m_CLS_has_been_initialized;

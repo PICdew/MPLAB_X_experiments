@@ -294,6 +294,152 @@ bool my_I2C_handler::transmit_n_bytes(const char *str, unsigned int bytes_to_sen
 }
 
 
+bool my_I2C_handler::receive_one_byte(UINT8 *data)
+{
+   bool this_ret_val = true;
+   unsigned int timeout_curr_time = 0;
+   unsigned int timeout_start_time = 0;
+
+   // attempt to enable the I2C module's receiver
+   /*
+   * if the receiver does not enable properly, report an error, set the
+   * argument to 0 (don't just leave it hanging), and return false
+   */
+   if(I2C_SUCCESS != I2CReceiverEnable(m_module_ID, TRUE))
+   {
+      *data = 0;
+      this_ret_val = false;
+   }
+
+   if (this_ret_val)
+   {
+      // wait for data to be available, then assign it when it is
+      // Note: If, prior to calling this function, the desired slave device's
+      // I2C address was not sent a signal with the master's READ bit set, then
+      // the desired slave device will not send data, resulting in an infinite
+      // loop.
+      my_delay_timer delay_timer_ref = my_delay_timer::get_instance();
+      timeout_start_time = delay_timer_ref.get_elapsed_time();
+      while(!I2CReceivedDataIsAvailable(m_module_ID))
+      {
+         timeout_curr_time = delay_timer_ref.get_elapsed_time();
+         if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
+         {
+            // timed out, so run away
+            this_ret_val = false;
+            break;
+         }
+      }
+      *data = I2CGetByte(m_module_ID);
+   }
+
+   return this_ret_val;
+}
+
+bool my_I2C_handler::write_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 data_byte)
+{
+   bool this_ret_val = true;
+   I2C_7_BIT_ADDRESS slave_address;
+
+   // send a start bit and ready the specified register on the specified device
+   if(!start_transfer(false))
+   {
+      this_ret_val = false;
+   }
+
+   if (this_ret_val)
+   {
+      I2C_FORMAT_7_BIT_ADDRESS(slave_address, dev_addr, I2C_WRITE);
+      if (!transmit_one_byte(slave_address.byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!transmit_one_byte(reg_addr))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!transmit_one_byte(data_byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   // stop the transmission
+   stop_transfer();
+
+
+   return this_ret_val;
+}
+
+bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 *data_byte)
+{
+   bool this_ret_val = false;
+   I2C_7_BIT_ADDRESS slave_address;
+
+   // send a start bit and ready the specified register on the specified device
+   if(!start_transfer(false))
+   {
+      this_ret_val = false;
+   }
+
+   if (this_ret_val)
+   {
+      I2C_FORMAT_7_BIT_ADDRESS(slave_address, dev_addr, I2C_WRITE);
+      if (!transmit_one_byte(slave_address.byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!transmit_one_byte(reg_addr))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   // if everything has gone ok so far, try to read that register
+   if (this_ret_val)
+   {
+      if (!start_transfer(true))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      I2C_FORMAT_7_BIT_ADDRESS(slave_address, dev_addr, I2C_READ);
+      if (!transmit_one_byte(slave_address.byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!receive_one_byte(data_byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   // stop the transmission
+   stop_transfer();
+
+   return this_ret_val;
+}
+
+
 bool my_I2C_handler::CLS_init(void)
 {
    bool this_ret_val = true;
@@ -318,9 +464,9 @@ bool my_I2C_handler::CLS_init(void)
 
       if (this_ret_val)
       {
-         I2C_7_BIT_ADDRESS SlaveAddress;
-         I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, TWI_ADDR_PMOD_CLS, I2C_WRITE);
-         if (!transmit_one_byte(SlaveAddress.byte))
+         I2C_7_BIT_ADDRESS slave_address;
+         I2C_FORMAT_7_BIT_ADDRESS(slave_address, TWI_ADDR_PMOD_CLS, I2C_WRITE);
+         if (!transmit_one_byte(slave_address.byte))
          {
             this_ret_val = false;
          }
@@ -390,9 +536,9 @@ bool my_I2C_handler::CLS_write_to_line(const char* string, unsigned int lineNum)
 
       if (this_ret_val)
       {
-         I2C_7_BIT_ADDRESS SlaveAddress;
-         I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, TWI_ADDR_PMOD_CLS, I2C_WRITE);
-         if (!transmit_one_byte(SlaveAddress.byte))
+         I2C_7_BIT_ADDRESS slave_address;
+         I2C_FORMAT_7_BIT_ADDRESS(slave_address, TWI_ADDR_PMOD_CLS, I2C_WRITE);
+         if (!transmit_one_byte(slave_address.byte))
          {
             this_ret_val = false;
          }
