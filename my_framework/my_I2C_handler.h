@@ -48,8 +48,7 @@ private:
    my_I2C_handler(void);
    
    bool module_is_valid(I2C_MODULE modID);
-   bool start_transfer_without_restart(void);
-   bool start_transfer_with_restart(void);
+   bool start_transfer(bool start_with_restart);
    bool stop_transfer(void);
    bool transmit_one_byte(UINT8 data);
    bool transmit_n_bytes(const char *str, unsigned int bytesToSend);
