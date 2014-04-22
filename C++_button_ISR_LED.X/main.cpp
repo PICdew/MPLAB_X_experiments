@@ -8,7 +8,7 @@ extern "C"
 }
 
 #include "my_button_handler.h"
-#include "my_delay_timer.h"
+#include "../my_framework/my_delay_timer.h"
 #include "my_sys_config.h"
 
 // Configuration Bit settings
@@ -35,7 +35,8 @@ int main(void)
    SYSTEMConfig(SYS_FREQ, SYS_CFG_WAIT_STATES | SYS_CFG_PCACHE);
 
    // initialize the things
-   my_delay_timer_init();
+   my_delay_timer delay_timer_ref = my_delay_timer::get_instance();
+   delay_timer_ref.init(SYS_FREQ / PB_DIV);
    my_button_handler local_bh = my_button_handler::get_instance();
 
    // enable multi-vector interrupts

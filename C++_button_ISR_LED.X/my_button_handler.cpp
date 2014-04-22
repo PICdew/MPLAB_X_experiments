@@ -5,7 +5,7 @@
 #include "my_sys_config.h"
 
 // for disabling button reading for a time
-#include "my_delay_timer.h"
+#include "../my_framework/my_delay_timer.h"
 
 // XC32 libraries
 extern "C"
@@ -61,7 +61,9 @@ void my_button_handler::do_the_button_thing(void)
    unsigned int current_ms_read = 0;
    unsigned int diff_ms_read = 0;
 
-   current_ms_read = get_elapsed_time();
+   my_delay_timer delay_timer_ref = my_delay_timer::get_instance();
+
+   current_ms_read = delay_timer_ref.get_elapsed_time();
    diff_ms_read = current_ms_read - previous_ms_read;
    previous_ms_read = current_ms_read;
 
@@ -87,6 +89,9 @@ void my_button_handler::do_the_button_thing(void)
       else
       {
          // button handling timer is still on cooldown, so do nothing
+         // Note: If the button is held down, then the countdown doesn't happen
+         // because the code comes into this else statement instead of the else
+         // statement below that handles the countdown.
       }
    }
    else
