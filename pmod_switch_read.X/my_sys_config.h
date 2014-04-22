@@ -18,20 +18,27 @@ extern "C"
 #define PB_DIV                8
 #define PRESCALE              256
 #define T1_TOGGLES_PER_SEC    1000
-#define T2_TOGGLES_PER_SEC    3
-#define T3_TOGGLES_PER_SEC    6
 #define T1_TICK_PR            (SYS_FREQ/PB_DIV/PRESCALE/T1_TOGGLES_PER_SEC)
-#define T2_TICK_PR            (SYS_FREQ/PB_DIV/PRESCALE/T2_TOGGLES_PER_SEC)
-#define T3_TICK_PR            (SYS_FREQ/PB_DIV/PRESCALE/T2_TOGGLES_PER_SEC)
 
 #define LED_PORT              IOPORT_B
 #define LED_1_PIN             BIT_10
-#define LED_2_PIN             BIT_13
+#define LED_2_PIN             BIT_11
+#define LED_3_PIN             BIT_12
+#define LED_4_PIN             BIT_13
 
-#define BUTTON_PORT           IOPORT_A
-#define BUTTON_1_PIN          BIT_6
-#define BUTTON_2_PIN          BIT_7
-const unsigned int BUTTON_READ_DELAY = 200;
+// the switch pmod is plugged into the top 6 pins of Digilent port JK (srsly,
+// no jk'ing here) as a demonstration of using a physical port without all the
+// pins being on the same PIC32 port
+#define SWITCH_1_PORT         IOPORT_C
+#define SWITCH_2_PORT         IOPORT_D
+#define SWITCH_3_PORT         IOPORT_A
+#define SWITCH_4_PORT         IOPORT_A
+#define SWITCH_1_PIN          BIT_4
+#define SWITCH_2_PIN          BIT_12
+#define SWITCH_3_PIN          BIT_10
+#define SWITCH_4_PIN          BIT_9
+
+const unsigned int SWITCH_READ_DELAY = 200;
 
 
 #endif	/* MY_SYS_CONFIG_H */
