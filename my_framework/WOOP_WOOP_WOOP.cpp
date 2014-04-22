@@ -1,15 +1,10 @@
 #include "WOOP_WOOP_WOOP.h"
 #include "my_delay_timer.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+extern "C" 
+{
 #include <peripheral/ports.h>
-
-#ifdef __cplusplus
 }
-#endif
 
 
 void WOOP_WOOP_WOOP(void)

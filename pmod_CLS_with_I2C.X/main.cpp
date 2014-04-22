@@ -6,7 +6,9 @@ extern "C"
 #include <string.h>
 }
 
+#include "my_sys_config.h"
 #include "../my_framework/my_I2C_handler.h"
+#include "../my_framework/my_delay_timer.h"
 
 
 // Oscillator Settings
@@ -30,18 +32,23 @@ int main(void)
 {
     int i = 0;
     char message[20];
-    my_I2C_handler cls_driver = my_I2C_handler::get_instance(I2C2);
+    my_I2C_handler i2c_driver = my_I2C_handler::get_instance();
 
-    cls_driver.my_I2C_CLS_init();
-    cls_driver.write_to_line("CLS initialized", 1);
+    i2c_driver.init(I2C2, SYS_CLOCK, DESIRED_I2C_FREQ_1KHZ);
+    i2c_driver.CLS_init();
+    i2c_driver.CLS_write_to_line("CLS initialized", 1);
+
+    my_delay_timer_init(SYS_CLOCK / PB_DIV);
+    INTEnableSystemMultiVectoredInt();
 
     // loop forever
     i = 0;
     while(1)
     {
         snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
-        cls_driver.write_to_line(message, 1);
+        i2c_driver.CLS_write_to_line(message, 1);
 
         i++;
+        delay_ms(200);
     }
 }

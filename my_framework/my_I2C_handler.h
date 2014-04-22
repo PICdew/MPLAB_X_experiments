@@ -8,15 +8,10 @@
 #ifndef MY_I2C_HANDLER_H
 #define	MY_I2C_HANDLER_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+extern "C"
+{
 #include <peripheral/i2c.h>
-
-#ifdef __cplusplus
 }
-#endif
 
 /*
  * Jumper setup for rev E CLS pmod
@@ -43,14 +38,14 @@ class my_I2C_handler
 {
 public:
    static my_I2C_handler& get_instance(void);
-   bool init_I2C(I2C_MODULE module_ID, unsigned int sys_clock, unsigned int desired_i2c_freq);
+   bool init(I2C_MODULE module_ID, unsigned int sys_clock, unsigned int desired_i2c_freq);
    
    // these are for the CLS pmod only
-   bool my_I2C_CLS_init(void);
-   bool write_to_line(const char* string, unsigned int lineNum);
+   bool CLS_init(void);
+   bool CLS_write_to_line(const char* string, unsigned int lineNum);
 
 private:
-   my_I2C_handler(I2C_MODULE modID);
+   my_I2C_handler(void);
    
    bool module_is_valid(I2C_MODULE modID);
    bool start_transfer_without_restart(void);
@@ -59,7 +54,8 @@ private:
    bool transmit_one_byte(UINT8 data);
    bool transmit_n_bytes(const char *str, unsigned int bytesToSend);
 
-   bool m_has_been_initialized;
+   bool m_I2C_has_been_initialized;
+   bool m_CLS_has_been_initialized;
    I2C_MODULE m_module_ID;
 };
 

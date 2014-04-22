@@ -8,7 +8,7 @@
 #ifndef MY_DELAY_TIMER_H
 #define	MY_DELAY_TIMER_H
 
-void my_delay_timer_init(void);
+void my_delay_timer_init(unsigned int pb_clock);
 void delay_ms(unsigned int milliseconds);
 unsigned int get_elapsed_time(void);
 

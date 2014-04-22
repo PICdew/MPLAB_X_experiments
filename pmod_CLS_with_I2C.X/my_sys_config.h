@@ -10,11 +10,9 @@
 
 #define SYS_CLOCK          80000000
 #define PB_DIV             2
-#define PS_256             256
 
-// define the timer period constant for the delay timer
-#define T1_TOGGLES_PER_SEC  1000
-#define T1_TICK_PR          SYS_CLOCK/PB_DIV/PS_256/T1_TOGGLES_PER_SEC
+// ??where do I find valid limits of I2C frequencies??
+#define DESIRED_I2C_FREQ_1KHZ    100000
 
 
 #endif	/* MY_SYS_CONFIG_H */
