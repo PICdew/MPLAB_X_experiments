@@ -13,10 +13,27 @@ extern "C"
 }
 
 
-// this address is unique to the CLS pmod hardware (see CLS ref manual) and is
-// independent of any program that uses it, so it is ok for it to be hidden in
-// this source file
-#define TWI_ADDR_PMOD_CLS 0x48
+// these I2C address are unique to the pmod hardware (see ref manuals for them)
+// and are independent of any program that uses them, so it is ok for them to
+// be hidden in this source file
+#define I2C_ADDR_PMOD_TEMP      0x4B
+#define TWI_ADDR_PMOD_CLS       0x48
+#define I2C_ADDR_PMOD_ACL       0x1D
+#define I2C_ADDR_PMOD_ACL_X0    0x32
+#define I2C_ADDR_PMOD_ACL_X1    0x33
+#define I2C_ADDR_PMOD_ACL_Y0    0x34
+#define I2C_ADDR_PMOD_ACL_Y1    0x35
+#define I2C_ADDR_PMOD_ACL_Z0    0x36
+#define I2C_ADDR_PMOD_ACL_Z1    0x37
+#define I2C_ADDR_PMOD_ACL_PWR   0x2D
+#define I2C_ADDR_PMOD_GYRO      0x69    // apparently, SDO is connected to VCC
+#define I2C_ADDR_PMOD_GYRO_XL   0x28
+#define I2C_ADDR_PMOD_GYRO_XH   0x29
+#define I2C_ADDR_PMOD_GYRO_YL   0x2A
+#define I2C_ADDR_PMOD_GYRO_YH   0x2B
+#define I2C_ADDR_PMOD_GYRO_ZL   0x2C
+#define I2C_ADDR_PMOD_GYRO_ZH   0x2D
+#define I2C_ADDR_PMOD_GYRO_CTRL_REG1   0x20
 
 // for timeouts so that while(...) loops don't hang forever
 const unsigned int I2C_TIMEOUT_MS = 10;
@@ -34,6 +51,7 @@ my_I2C_handler::my_I2C_handler()
 {
    m_I2C_has_been_initialized = false;
    m_CLS_has_been_initialized = false;
+   m_TMP_has_been_initialized = false;
 }
 
 bool my_I2C_handler::init(I2C_MODULE module_ID, unsigned int pb_clock, unsigned int desired_i2c_freq)
@@ -294,7 +312,7 @@ bool my_I2C_handler::transmit_n_bytes(const char *str, unsigned int bytes_to_sen
 }
 
 
-bool my_I2C_handler::receive_one_byte(UINT8 *data)
+bool my_I2C_handler::receive_one_byte(UINT8 *data_byte_ptr)
 {
    bool this_ret_val = true;
    unsigned int timeout_curr_time = 0;
@@ -307,7 +325,7 @@ bool my_I2C_handler::receive_one_byte(UINT8 *data)
    */
    if(I2C_SUCCESS != I2CReceiverEnable(m_module_ID, TRUE))
    {
-      *data = 0;
+      *data_byte_ptr = 0;
       this_ret_val = false;
    }
 
@@ -330,7 +348,7 @@ bool my_I2C_handler::receive_one_byte(UINT8 *data)
             break;
          }
       }
-      *data = I2CGetByte(m_module_ID);
+      *data_byte_ptr = I2CGetByte(m_module_ID);
    }
 
    return this_ret_val;
@@ -379,7 +397,7 @@ bool my_I2C_handler::write_device_register(unsigned int dev_addr, unsigned int r
    return this_ret_val;
 }
 
-bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 *data_byte)
+bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 *data_byte_ptr)
 {
    bool this_ret_val = false;
    I2C_7_BIT_ADDRESS slave_address;
@@ -427,7 +445,7 @@ bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int re
 
    if (this_ret_val)
    {
-      if (!receive_one_byte(data_byte))
+      if (!receive_one_byte(data_byte_ptr))
       {
          this_ret_val = false;
       }
@@ -578,3 +596,96 @@ bool my_I2C_handler::CLS_write_to_line(const char* string, unsigned int lineNum)
 
    return this_ret_val;
 }
+
+
+bool my_I2C_handler::temp_init(void)
+{
+   // nothing much to do except ceck that the I2C module itself has already
+   // been initialized, but if something else needs to be done in the future,
+   // this is where pmod TMP init stuff will go
+
+   if (m_I2C_has_been_initialized)
+   {
+      m_TMP_has_been_initialized = true;
+   }
+
+   return true;
+}
+
+bool my_I2C_handler::temp_read(float *f_ptr, bool read_in_F)
+{
+   bool this_ret_val = true;
+   I2C_7_BIT_ADDRESS   slave_address;
+   UINT8               data_byte = 0;
+   UINT32              data_uint = 0;
+   float               temperature = 0.0f;
+
+   if (!m_TMP_has_been_initialized)
+   {
+      this_ret_val = false;
+   }
+
+   if (this_ret_val)
+   {
+      if (!start_transfer(false))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_TEMP, I2C_READ);
+      if (!transmit_one_byte(slave_address.byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   // you can only read one byte at a time, but the temperature pmod has 16bits
+   // of data that are intended for a float, so do two reads
+   // Note: The first read reads the high byte, and the second read without
+   // stopping the transfer will read the low byte.  If you tried to read
+   // another byte after that, I don't know what would happen.
+   if (this_ret_val)
+   {
+      if (!receive_one_byte(&data_byte))
+      {
+         this_ret_val = false;
+      }
+      else
+      {
+         data_uint = data_byte << 8;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!receive_one_byte(&data_byte))
+      {
+         this_ret_val = false;
+      }
+      else
+      {
+         data_uint |= data_byte;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      // all the readings seemed to go okay, so convert the bit signal into
+      // degrees Celsius according to the reference manual
+      temperature = (data_uint >> 3) * 0.0625;
+
+      if (read_in_F)
+      {
+         temperature = ((temperature * 9) / 5) + 32;
+      }
+   }
+
+   *f_ptr = temperature;
+   stop_transfer();
+
+   return this_ret_val;
+}
+

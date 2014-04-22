@@ -40,9 +40,11 @@ public:
    static my_I2C_handler& get_instance(void);
    bool init(I2C_MODULE module_ID, unsigned int sys_clock, unsigned int desired_i2c_freq);
    
-   // these are for the CLS pmod only
    bool CLS_init(void);
    bool CLS_write_to_line(const char* string, unsigned int lineNum);
+
+   bool temp_init(void);
+   bool temp_read(float *f_ptr, bool read_in_F);
 
 private:
    my_I2C_handler(void);
@@ -53,13 +55,14 @@ private:
    bool transmit_one_byte(UINT8 data);
    bool transmit_n_bytes(const char *str, unsigned int bytesToSend);
    bool receive_one_byte(UINT8 *data);
-   bool write_device_register(unsigned int devAddr, unsigned int regAddr, UINT8 dataByte);
-   bool read_device_register(unsigned int devAddr, unsigned int regAddr, UINT8 *dataByte);
+   bool write_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 data_byte);
+   bool read_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 *data_byte_ptr);
 
 
 
    bool m_I2C_has_been_initialized;
    bool m_CLS_has_been_initialized;
+   bool m_TMP_has_been_initialized;
    I2C_MODULE m_module_ID;
 };
 
