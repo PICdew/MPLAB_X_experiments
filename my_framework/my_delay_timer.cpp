@@ -55,9 +55,21 @@ void my_delay_timer::delay_ms(unsigned int milliseconds)
    }
 }
 
-unsigned int my_delay_timer::get_elapsed_time(void)
+unsigned int my_delay_timer::get_elapsed_ms_since_program_start(void)
 {
    return g_milliseconds_in_operation;
+}
+
+bool my_delay_timer::timer_ms(unsigned int start_time_milliseconds, unsigned int timer_limit_ms)
+{
+   bool this_ret_val = false;
+
+   if (g_milliseconds_in_operation - start_time_milliseconds > timer_limit_ms)
+   {
+      this_ret_val = true;
+   }
+
+   return this_ret_val;
 }
 
 // we are using the XC32 C++ compiler, but this ISR handler registration macro

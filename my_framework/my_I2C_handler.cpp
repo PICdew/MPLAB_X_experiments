@@ -1,5 +1,6 @@
 
 #include "my_I2C_handler.h"
+#include "my_delay_timer.h"
 
 extern "C"
 {
@@ -69,6 +70,8 @@ extern "C"
 
 // define the frequency (??what kind of frequency? clock frequency? bit transfer frequency? byte transfer frequency??) at which an I2C module will operate
 #define I2C_FREQ_1KHZ      100000
+
+const unsigned int I2C_TIMEOUT_MS = 5;
 
 // Globals for setting up pmod CLS
 // values in Digilent pmod CLS reference manual, pages 2 - 3
@@ -162,10 +165,12 @@ bool my_i2c_handler::start_transfer(I2C_MODULE module_ID, bool start_with_restar
    if(I2C_SUCCESS != returnVal) { return false; }
 
    // Wait for the signal to complete
+   my_delay_timer timer = my_delay_timer::get_instance();
+   unsigned int start_time = timer.get_elapsed_ms_since_program_start();
    do
    {
       status = I2CGetStatus(module_ID);
-
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
    } while ( !(status & I2C_START) );
 
    return true;
@@ -183,10 +188,12 @@ bool my_i2c_handler::stop_transfer(I2C_MODULE module_ID)
    I2CStop(module_ID);
 
    // Wait for the signal to complete
+   my_delay_timer timer = my_delay_timer::get_instance();
+   unsigned int start_time = timer.get_elapsed_ms_since_program_start();
    do
    {
       status = I2CGetStatus(module_ID);
-
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
    } while ( !(status & I2C_STOP) );
 }
 
@@ -198,15 +205,26 @@ bool my_i2c_handler::transmit_one_byte(I2C_MODULE module_ID, UINT8 data)
    // check that we are dealing with a valid I2C module
    if (!module_is_valid(module_ID)) { return false; }
 
+   my_delay_timer timer = my_delay_timer::get_instance();
+   unsigned int start_time;
+
    // Wait for the transmitter to be ready
-   while(!I2CTransmitterIsReady(module_ID));
+   start_time = timer.get_elapsed_ms_since_program_start();
+   while(!I2CTransmitterIsReady(module_ID))
+   {
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
+   }
 
    // Transmit the byte
    returnVal = I2CSendByte(module_ID, data);
    if(I2C_SUCCESS != returnVal) { return false; }
 
    // Wait for the transmission to finish
-   while(!I2CTransmissionHasCompleted(module_ID));
+   start_time = timer.get_elapsed_ms_since_program_start();
+   while(!I2CTransmissionHasCompleted(module_ID))
+   {
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
+   }
 
    // look for the acknowledge bit
    if(!I2CByteWasAcknowledged(module_ID)) { return false; }
@@ -239,7 +257,12 @@ bool my_i2c_handler::receive_one_byte(I2C_MODULE module_ID, UINT8 *data)
     * address was not sent a signal with the master's READ bit set, then the
     * desired slave device will not send data, resulting in an infinite loop
     */
-   while(!(I2CReceivedDataIsAvailable(module_ID)));
+   my_delay_timer timer = my_delay_timer::get_instance();
+   unsigned int start_time = timer.get_elapsed_ms_since_program_start();
+   while(!(I2CReceivedDataIsAvailable(module_ID)))
+   {
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
+   }
    *data = I2CGetByte(module_ID);
 
    return true;
@@ -253,7 +276,6 @@ bool my_i2c_handler::transmit_n_bytes(I2C_MODULE module_ID, char *str, unsigned 
     */
    unsigned int byteCount;
    unsigned char c;
-   bool attempt = false;
 
    // check that we are dealing with a valid I2C module
    if (!module_is_valid(module_ID)) { return false; }
@@ -287,7 +309,13 @@ bool my_i2c_handler::CLS_write_to_line(I2C_MODULE module_ID, char* string, unsig
    if (!m_cls_on_i2c_X_has_been_initialized[module_ID]) { return false; }
 
    // start the I2C module and signal the CLS
-   while(!start_transfer(module_ID, false));
+   my_delay_timer timer = my_delay_timer::get_instance();
+   unsigned int start_time = timer.get_elapsed_ms_since_program_start();
+   while(!start_transfer(module_ID, false))
+   {
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
+   }
+
    I2C_FORMAT_7_BIT_ADDRESS(slave_addr, TWI_ADDR_PMOD_CLS, I2C_WRITE);
    if (!transmit_one_byte(module_ID, slave_addr.byte)) { return false; }
 
@@ -316,7 +344,13 @@ bool my_i2c_handler::write_device_register(I2C_MODULE module_ID, unsigned int de
    if (!module_is_valid(module_ID)) { return false; }
 
    // send a start bit and ready the specified register on the specified device
-   while(!start_transfer(module_ID, false));
+   my_delay_timer timer = my_delay_timer::get_instance();
+   unsigned int start_time = timer.get_elapsed_ms_since_program_start();
+   while(!start_transfer(module_ID, false))
+   {
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
+   }
+
    I2C_FORMAT_7_BIT_ADDRESS(slave_addr, devAddr, I2C_WRITE);
    if (!transmit_one_byte(module_ID, slave_addr.byte))
    {
@@ -350,8 +384,16 @@ bool my_i2c_handler::read_device_register(I2C_MODULE module_ID, unsigned int dev
    // check that we are dealing with a valid I2C module
    if (!module_is_valid(module_ID)) { return false; }
 
+   my_delay_timer timer = my_delay_timer::get_instance();
+   unsigned int start_time;
+
    // send a start bit and ready the specified register on the specified device
-   while(!start_transfer(module_ID, false));
+   start_time = timer.get_elapsed_ms_since_program_start();
+   while(!start_transfer(module_ID, false))
+   {
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
+   }
+
    I2C_FORMAT_7_BIT_ADDRESS(slave_addr, devAddr, I2C_WRITE);
    if (!transmit_one_byte(module_ID, slave_addr.byte))
    {
@@ -367,7 +409,12 @@ bool my_i2c_handler::read_device_register(I2C_MODULE module_ID, unsigned int dev
    }
 
    // now read that register
-   while(!start_transfer(module_ID, true));
+   start_time = timer.get_elapsed_ms_since_program_start();
+   while(!start_transfer(module_ID, true))
+   {
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
+   }
+
    I2C_FORMAT_7_BIT_ADDRESS(slave_addr, devAddr, I2C_READ);
    if (!transmit_one_byte(module_ID, slave_addr.byte))
    {
@@ -408,7 +455,13 @@ bool my_i2c_handler::CLS_init(I2C_MODULE module_ID)
       // initialized, so do your thing
 
       // start the I2C module, signal the CLS, and send setting strings
-      while(!start_transfer(module_ID, false));
+      my_delay_timer timer = my_delay_timer::get_instance();
+      unsigned int start_time = timer.get_elapsed_ms_since_program_start();
+      while(!start_transfer(module_ID, false))
+      {
+         if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
+      }
+
       I2C_FORMAT_7_BIT_ADDRESS(slave_addr, TWI_ADDR_PMOD_CLS, I2C_WRITE);
       if (!transmit_one_byte(module_ID, slave_addr.byte)) { return false; }
       if (!transmit_n_bytes(module_ID, (char*)enable_display, strlen(enable_display))) { return false; }
@@ -528,7 +581,12 @@ bool my_i2c_handler::temp_read(I2C_MODULE module_ID, float *fptr)
    if (!m_temp_on_i2c_X_has_been_initialized[module_ID]) { return false; }
 
    // send a start signal to the I2C module
-   while(!start_transfer(module_ID, false));
+   my_delay_timer timer = my_delay_timer::get_instance();
+   unsigned int start_time = timer.get_elapsed_ms_since_program_start();
+   while(!start_transfer(module_ID, false))
+   {
+      if (timer.timer_ms(start_time, I2C_TIMEOUT_MS)) { return false; }
+   }
 
    // prepare the temperature pmod for reading
    I2C_FORMAT_7_BIT_ADDRESS(slave_addr, I2C_ADDR_PMOD_TEMP, I2C_READ);

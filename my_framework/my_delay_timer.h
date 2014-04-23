@@ -14,7 +14,8 @@ public:
    static my_delay_timer& get_instance(void);
    void init(unsigned int pb_clock);
    void delay_ms(unsigned int milliseconds);
-   unsigned int get_elapsed_time(void);
+   unsigned int get_elapsed_ms_since_program_start(void);
+   bool timer_ms(unsigned int start_time_milliseconds, unsigned int timer_limit_ms);
 
 private:
    my_delay_timer(void);

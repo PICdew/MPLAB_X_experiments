@@ -75,9 +75,6 @@ int main(void)
    snprintf(message, CLS_LINE_SIZE, "Accel initialized");
    i2c_driver.CLS_write_to_line(I2C2, message, 1);
 
-   // I2C initialization done; reset onboard LEDs for use in other things
-   PORTClearBits(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
-
 
    // loop forever
    bool read_success = false;
