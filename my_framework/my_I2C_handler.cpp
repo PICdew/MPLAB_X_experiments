@@ -689,3 +689,109 @@ bool my_I2C_handler::temp_read(float *f_ptr, bool read_in_F)
    return this_ret_val;
 }
 
+
+bool my_I2C_handler::acl_init(void)
+{
+   bool this_ret_val = false;
+   I2C_7_BIT_ADDRESS slave_address;
+   UINT8 data_byte;
+
+   if (!start_transfer(false))
+   {
+      this_ret_val = false;
+   }
+
+   if (this_ret_val)
+   {
+      I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_ACL, I2C_WRITE);
+      if (!transmit_one_byte(slave_address.byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!transmit_one_byte(I2C_ADDR_PMOD_ACL_PWR))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!start_transfer(true))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_ACL, I2C_READ);
+      if (!transmit_one_byte(slave_address.byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!transmit_one_byte(slave_address.byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!receive_one_byte(&data_byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      // set the standby/measure bit to "measure" and write back the power
+      // regiser to the accelerometer
+      if (!start_transfer(true))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_ACL, I2C_WRITE);
+      if (!transmit_one_byte(slave_address.byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!transmit_one_byte(I2C_ADDR_PMOD_ACL_PWR))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   if (this_ret_val)
+   {
+      if (!transmit_one_byte(data_byte))
+      {
+         this_ret_val = false;
+      }
+   }
+
+   stop_transfer();
+
+   return this_ret_val;
+}
+
+bool my_I2C_handler::acl_read(ACCEL_DATA *data_ptr)
+{
+
+}

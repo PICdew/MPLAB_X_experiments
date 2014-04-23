@@ -33,6 +33,19 @@ extern "C"
 // for the CLS; used when formating strings to fit in a line
 const unsigned int CLS_LINE_SIZE = 17;
 
+typedef struct accelData
+{
+    float X;
+    float Y;
+    float Z;
+} ACCEL_DATA;
+
+typedef struct gyroData
+{
+    float X;
+    float Y;
+    float Z;
+} GYRO_DATA;
  
 class my_I2C_handler
 {
@@ -45,6 +58,9 @@ public:
 
    bool temp_init(void);
    bool temp_read(float *f_ptr, bool read_in_F);
+
+   bool acl_init(void);
+   bool acl_read(ACCEL_DATA *data_ptr);
 
 private:
    my_I2C_handler(void);
