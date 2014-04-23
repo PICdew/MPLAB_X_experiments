@@ -79,6 +79,7 @@ private:
    bool m_I2C_has_been_initialized;
    bool m_CLS_has_been_initialized;
    bool m_TMP_has_been_initialized;
+   bool m_ACL_has_been_initialized;
    I2C_MODULE m_module_ID;
 };
 

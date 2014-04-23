@@ -59,33 +59,55 @@ int main(void)
    ret_val = i2c_driver.acl_init();
    if (!ret_val)
    {
-      WOOP_WOOP_WOOP();
+      i2c_driver.CLS_write_to_line("acl failed", 1);
+      //WOOP_WOOP_WOOP();
+   }
+   else
+   {
+      i2c_driver.CLS_write_to_line("acl success", 1);
    }
 
+
    // turn an LED on and off for a little light show because...reasons
-   PORTSetPinsDigitalOut(IOPORT_B, BIT_10);
-   PORTClearBits(IOPORT_B, BIT_10);
+   PORTSetPinsDigitalOut(IOPORT_B, BIT_10 | BIT_12 | BIT_13);
+   PORTClearBits(IOPORT_B, BIT_10 | BIT_12 | BIT_13);
 
    // loop forever
    bool LED_is_on = false;
    ACCEL_DATA acl_data;
    char message[20];
-
+   int i = 0;
    while(1)
    {
-//      ret_val = i2c_driver.acl_read(&acl_data);
+      //ret_val = i2c_driver.acl_read(&acl_data);
 //      if (ret_val)
 //      {
-//         snprintf(message, CLS_LINE_SIZE, "X=%5.2f;;Y=%5.2f", acl_data.X, acl_data.Y);
-//         i2c_driver.CLS_write_to_line(message, 1);
-//
-//         snprintf(message, CLS_LINE_SIZE, "Z=%5.2f", acl_data.Z);
-//         i2c_driver.CLS_write_to_line(message, 2);
+//         PORTSetBits(IOPORT_B, BIT_12);
+//         PORTClearBits(IOPORT_B, BIT_13);
 //      }
 //      else
 //      {
-//         snprintf(message, CLS_LINE_SIZE, "acl = XXXX");
+//         PORTSetBits(IOPORT_B, BIT_13);
+//         PORTClearBits(IOPORT_B, BIT_12);
 //      }
+//      snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
+//      i2c_driver.CLS_write_to_line(message, 1);
+//      i += 1;
+      ret_val = i2c_driver.acl_read(&acl_data);
+      if (ret_val)
+      {
+         snprintf(message, CLS_LINE_SIZE, "X=%5.2f;;Y=%5.2f", acl_data.X, acl_data.Y);
+         i2c_driver.CLS_write_to_line(message, 1);
+
+         snprintf(message, CLS_LINE_SIZE, "Z=%5.2f", acl_data.Z);
+         i2c_driver.CLS_write_to_line(message, 2);
+      }
+      else
+      {
+         snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
+         i2c_driver.CLS_write_to_line(message, 1);
+         i += 1;
+      }
 
       if (LED_is_on)
       {

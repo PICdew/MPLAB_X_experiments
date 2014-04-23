@@ -52,6 +52,7 @@ my_I2C_handler::my_I2C_handler()
    m_I2C_has_been_initialized = false;
    m_CLS_has_been_initialized = false;
    m_TMP_has_been_initialized = false;
+   m_ACL_has_been_initialized = false;
 }
 
 bool my_I2C_handler::init(I2C_MODULE module_ID, unsigned int pb_clock, unsigned int desired_i2c_freq)
@@ -119,60 +120,58 @@ bool my_I2C_handler::start_transfer(bool start_with_restart)
    I2C_RESULT start_result;
    I2C_STATUS curr_status;
 
-   // Wait for the bus to be idle, then start the transfer
    my_delay_timer delay_timer_ref = my_delay_timer::get_instance();
-   timeout_start_time = delay_timer_ref.get_elapsed_time();
-   while(!I2CBusIsIdle(m_module_ID))
+
+   if (start_with_restart)
    {
-      timeout_curr_time = delay_timer_ref.get_elapsed_time();
-      if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
-      {
-         // timed out, so run away
-         this_ret_val = false;
-         break;
-      }
+      // restart the bus; don't wait for it to be idle
+      start_result = I2CRepeatStart(m_module_ID);
    }
-
-   if (this_ret_val)
+   else
    {
-      if (start_with_restart)
+      // Wait for the bus to be idle, then start the transfer
+      timeout_start_time = delay_timer_ref.get_elapsed_time();
+      while(!I2CBusIsIdle(m_module_ID))
       {
-         start_result = I2CRepeatStart(m_module_ID);
-      }
-      else
-      {
-         start_result = I2CStart(m_module_ID);
-      }
-
-      if(I2C_SUCCESS != start_result)
-      {
-         // oh noes! the starts has not begun to succeed!
-         this_ret_val = false;
-
-         // if there is a re-occurring master bus collision, just power cycle it
-   //      if (I2C_MASTER_BUS_COLLISION == start_result)
+   //      timeout_curr_time = delay_timer_ref.get_elapsed_time();
+   //      if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
    //      {
-   //         I2C2STATCLR = _I2C2STAT_IWCOL_MASK | _I2C2STAT_BCL_MASK;
+   //         // timed out, so run away
+   //         this_ret_val = false;
+   //         break;
    //      }
       }
-      else
-      {
-         // it didn't say that there was a problem, so wait for the signal to
-         // complete
-         timeout_start_time = delay_timer_ref.get_elapsed_time();
-         do
-         {
-            curr_status = I2CGetStatus(m_module_ID);
+      start_result = I2CStart(m_module_ID);
+   }
 
-            timeout_curr_time = delay_timer_ref.get_elapsed_time();
-            if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
-            {
-               // timed out, so run away
-               this_ret_val = false;
-               break;
-            }
-         } while ( !(curr_status & I2C_START) );
-      }
+   if(I2C_SUCCESS != start_result)
+   {
+      // oh noes! the starts has not begun to succeed!
+      this_ret_val = false;
+
+      // if there is a re-occurring master bus collision, just power cycle it
+//      if (I2C_MASTER_BUS_COLLISION == start_result)
+//      {
+//         I2C2STATCLR = _I2C2STAT_IWCOL_MASK | _I2C2STAT_BCL_MASK;
+//      }
+   }
+   else
+   {
+      // it didn't say that there was a problem, so wait for the signal to
+      // complete
+      timeout_start_time = delay_timer_ref.get_elapsed_time();
+      do
+      {
+         curr_status = I2CGetStatus(m_module_ID);
+
+//            timeout_curr_time = delay_timer_ref.get_elapsed_time();
+//            if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
+//            {
+//               // timed out, so run away
+//               this_ret_val = false;
+//               break;
+//            }
+      } while ( !(curr_status & I2C_START) );
    }
 
    return this_ret_val;
@@ -197,13 +196,13 @@ bool my_I2C_handler::stop_transfer(void)
    {
       curr_status = I2CGetStatus(m_module_ID);
 
-      timeout_curr_time = delay_timer_ref.get_elapsed_time();
-      if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
-      {
-         // timed out, so run away
-         this_ret_val = false;
-         break;
-      }
+//      timeout_curr_time = delay_timer_ref.get_elapsed_time();
+//      if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
+//      {
+//         // timed out, so run away
+//         this_ret_val = false;
+//         break;
+//      }
    } while ( !(curr_status & I2C_STOP) );
    
    return this_ret_val;
@@ -222,13 +221,13 @@ bool my_I2C_handler::transmit_one_byte(UINT8 data)
    timeout_start_time = delay_timer_ref.get_elapsed_time();
    while(!I2CTransmitterIsReady(m_module_ID))
    {
-      timeout_curr_time = delay_timer_ref.get_elapsed_time();
-      if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
-      {
-         // timed out, so run away
-         this_ret_val = false;
-         break;
-      }
+//      timeout_curr_time = delay_timer_ref.get_elapsed_time();
+//      if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
+//      {
+//         // timed out, so run away
+//         this_ret_val = false;
+//         break;
+//      }
    }
 
    if (this_ret_val)
@@ -247,13 +246,13 @@ bool my_I2C_handler::transmit_one_byte(UINT8 data)
       timeout_start_time = delay_timer_ref.get_elapsed_time();
       while(!I2CTransmissionHasCompleted(m_module_ID))
       {
-         timeout_curr_time = delay_timer_ref.get_elapsed_time();
-         if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
-         {
-            // timed out, so run away
-            this_ret_val = false;
-            break;
-         }
+//         timeout_curr_time = delay_timer_ref.get_elapsed_time();
+//         if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
+//         {
+//            // timed out, so run away
+//            this_ret_val = false;
+//            break;
+//         }
       }
    }
 
@@ -340,13 +339,13 @@ bool my_I2C_handler::receive_one_byte(UINT8 *data_byte_ptr)
       timeout_start_time = delay_timer_ref.get_elapsed_time();
       while(!I2CReceivedDataIsAvailable(m_module_ID))
       {
-         timeout_curr_time = delay_timer_ref.get_elapsed_time();
-         if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
-         {
-            // timed out, so run away
-            this_ret_val = false;
-            break;
-         }
+//         timeout_curr_time = delay_timer_ref.get_elapsed_time();
+//         if (timeout_curr_time - timeout_start_time > I2C_TIMEOUT_MS)
+//         {
+//            // timed out, so run away
+//            this_ret_val = false;
+//            break;
+//         }
       }
       *data_byte_ptr = I2CGetByte(m_module_ID);
    }
@@ -405,6 +404,7 @@ bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int re
    // send a start bit and ready the specified register on the specified device
    if(!start_transfer(false))
    {
+      *data_byte_ptr = 1;
       this_ret_val = false;
    }
 
@@ -413,6 +413,7 @@ bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int re
       I2C_FORMAT_7_BIT_ADDRESS(slave_address, dev_addr, I2C_WRITE);
       if (!transmit_one_byte(slave_address.byte))
       {
+         *data_byte_ptr = 2;
          this_ret_val = false;
       }
    }
@@ -421,6 +422,7 @@ bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int re
    {
       if (!transmit_one_byte(reg_addr))
       {
+         *data_byte_ptr = 3;
          this_ret_val = false;
       }
    }
@@ -430,6 +432,7 @@ bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int re
    {
       if (!start_transfer(true))
       {
+         *data_byte_ptr = 4;
          this_ret_val = false;
       }
    }
@@ -439,6 +442,7 @@ bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int re
       I2C_FORMAT_7_BIT_ADDRESS(slave_address, dev_addr, I2C_READ);
       if (!transmit_one_byte(slave_address.byte))
       {
+         *data_byte_ptr = 5;
          this_ret_val = false;
       }
    }
@@ -447,6 +451,7 @@ bool my_I2C_handler::read_device_register(unsigned int dev_addr, unsigned int re
    {
       if (!receive_one_byte(data_byte_ptr))
       {
+         *data_byte_ptr = 6;
          this_ret_val = false;
       }
    }
@@ -473,8 +478,6 @@ bool my_I2C_handler::CLS_init(void)
       // I2C module has been initialized, so proceed with CLS initialization
 
       // start the I2C module, signal the CLS, and send setting strings
-      my_delay_timer delay_timer_ref = my_delay_timer::get_instance();
-      timeout_start_time = delay_timer_ref.get_elapsed_time();
       if(!start_transfer(false))
       {
          this_ret_val = false;
@@ -692,26 +695,29 @@ bool my_I2C_handler::temp_read(float *f_ptr, bool read_in_F)
 
 bool my_I2C_handler::acl_init(void)
 {
-   bool this_ret_val = false;
+   bool this_ret_val = true;
    I2C_7_BIT_ADDRESS slave_address;
    UINT8 data_byte;
 
-   // read the power control register, set the standby/measure bit to
-   // "measure", then write it back
-   if (!read_device_register(I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_PWR, &data_byte))
-   {
-      this_ret_val = false;
-   }
+   while(!start_transfer(false));
+   I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_ACL, I2C_WRITE);
+   transmit_one_byte(slave_address.byte);
+   transmit_one_byte(I2C_ADDR_PMOD_ACL_PWR);
+   while(!start_transfer(true));
+   I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_ACL, I2C_READ);
+   transmit_one_byte(slave_address.byte);
+   receive_one_byte(&data_byte);
 
-   if (this_ret_val)
-   {
-      data_byte |= 0x08;
-      if (!write_device_register(I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_PWR, data_byte))
-      {
-         this_ret_val = false;
-      }
-      read_device_register(I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_PWR, &data_byte);
-   }
+   data_byte |= 0x08;
+   while(!start_transfer(true));
+   I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_ACL, I2C_WRITE);
+   transmit_one_byte(slave_address.byte);
+   transmit_one_byte(I2C_ADDR_PMOD_ACL_PWR);
+   transmit_one_byte(data_byte);
+
+   stop_transfer();
+
+   m_ACL_has_been_initialized = true;
 
    return this_ret_val;
 }
@@ -730,9 +736,17 @@ bool my_I2C_handler::acl_read(ACCEL_DATA *data_ptr)
    };
    UINT8 data_byte = 0;
 
-   if (0 == data_ptr)
+   if (!m_ACL_has_been_initialized)
    {
       this_ret_val = false;
+   }
+
+   if (this_ret_val)
+   {
+      if (0 == data_ptr)
+      {
+         this_ret_val = false;
+      }
    }
 
    for (int data_index = 0; data_index < 3; data_index += 1)
