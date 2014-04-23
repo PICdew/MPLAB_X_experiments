@@ -35,68 +35,70 @@ int main(void)
 
    my_delay_timer delay_timer_ref = my_delay_timer::get_instance();
    delay_timer_ref.init(SYS_CLOCK / PB_DIV);
+
+   // setup the LEDs
+   PORTSetPinsDigitalOut(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
+   PORTClearBits(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
+
+   // enable multivector interrupts so the timer1 interrupt vector can lead to
+   // the interrupt handler;
+   // this also enables interrupts (apparently), thus starting the timer
    INTEnableSystemMultiVectoredInt();
 
-   my_I2C_handler i2c_driver = my_I2C_handler::get_instance();
-   ret_val = i2c_driver.init(I2C2, SYS_CLOCK, DESIRED_I2C_FREQ_1KHZ);
+   if (!setupI2C(I2C2))
+   {
+      PORTSetBits(IOPORT_B, BIT_10);
+      while(1);
+   }
 
-   ret_val = i2c_driver.CLS_init();
+   if (!myI2CInitCLS(I2C2))
+   {
+      PORTSetBits(IOPORT_B, BIT_11);
+      while(1);
+   }
+   myI2CWriteToLine(I2C2, "CLS initialized", 1);
 
-   ret_val = i2c_driver.CLS_write_to_line("CLS initialized", 1);
+   if (!myI2CInitAccel(I2C2))
+   {
+      myI2CWriteToLine(I2C2, "Accel init fail", 1);
+      while(1);
+   }
+   myI2CWriteToLine(I2C2, "Accel initialized", 1);
 
-   ret_val = i2c_driver.acl_init();
+   // I2C initialization done; reset onboard LEDs for use in other things
+   PORTClearBits(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
 
-
-   // turn an LED on and off for a little light show because...reasons
-   PORTSetPinsDigitalOut(IOPORT_B, BIT_10 | BIT_12 | BIT_13);
-   PORTClearBits(IOPORT_B, BIT_10 | BIT_12 | BIT_13);
 
    // loop forever
-   bool LED_is_on = false;
+   bool read_success = false;
    ACCEL_DATA acl_data;
    char message[20];
    int i = 0;
    while(1)
    {
-      ret_val = i2c_driver.acl_read(&acl_data);
-      if (ret_val)
-      {
-         PORTToggleBits(IOPORT_B, BIT_12);
-         PORTClearBits(IOPORT_B, BIT_13);
-      }
-      else
-      {
-         PORTToggleBits(IOPORT_B, BIT_13);
-         PORTClearBits(IOPORT_B, BIT_12);
-      }
-//      snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
-//      i2c_driver.CLS_write_to_line(message, 1);
-//      i += 1;
-//      ret_val = i2c_driver.acl_read(&acl_data);
-//      if (ret_val)
-//      {
-//         snprintf(message, CLS_LINE_SIZE, "X=%5.2f;;Y=%5.2f", acl_data.X, acl_data.Y);
-//         i2c_driver.CLS_write_to_line(message, 1);
-//
-//         snprintf(message, CLS_LINE_SIZE, "Z=%5.2f", acl_data.Z);
-//         i2c_driver.CLS_write_to_line(message, 2);
-//      }
-//      else
-//      {
-//         snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
-//         i2c_driver.CLS_write_to_line(message, 1);
-//         i += 1;
-//      }
+      PORTToggleBits(IOPORT_B, BIT_13);
+      delay_timer_ref.delay_ms(200);
 
-      if (LED_is_on)
+      read_success = true;
+
+      if (!readAccel(I2C2, &acl_data))
       {
-         PORTClearBits(IOPORT_B, BIT_10);
-         LED_is_on = false;
+         myI2CWriteToLine(I2C2, "Accel read fail", 1);
+         read_success = false;
+      }
+
+      if (read_success)
+      {
+         snprintf(message, CLS_LINE_SIZE, "X:%5.2f Y:%5.2f", acl_data.X, acl_data.Y);
+         myI2CWriteToLine(I2C2, message, 1);
+         snprintf(message, CLS_LINE_SIZE, "Z:%5.2f", acl_data.Z);
+         myI2CWriteToLine(I2C2, message, 2);
       }
       else
       {
-         PORTSetBits(IOPORT_B, BIT_10);
-         LED_is_on = true;
+         snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
+         myI2CWriteToLine(I2C2, message, 1);
+         i += 1;
       }
 
       delay_timer_ref.delay_ms(200);
