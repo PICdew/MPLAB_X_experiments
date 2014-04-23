@@ -78,20 +78,30 @@ const char home_cursor[] =     {27, '[', 'j', '\0'};
 const char wrap_line[] =       {27, '[', '0', 'h', '\0'};
 const char set_line_two[] =    {27, '[', '1', ';', '0', 'H', '\0'};
 
-unsigned int gMillisecondsInOperation;
+my_i2c_handler::my_i2c_handler()
+{
+   // nothing here
+}
 
-BOOL moduleIsValid(I2C_MODULE modID)
+my_i2c_handler& my_i2c_handler::get_instance(void)
+{
+   static my_i2c_handler ref;
+   
+   return ref;
+}
+
+bool my_i2c_handler::moduleIsValid(I2C_MODULE modID)
 {
     if (modID != I2C1 && modID != I2C2)
     {
         // invalid module for this board; abort
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
-BOOL setupI2C(I2C_MODULE modID)
+bool my_i2c_handler::setupI2C(I2C_MODULE modID)
 {
     // this value stores the return value of I2CSetFrequency(...), and it can
     // be used to compare the actual set frequency against the desired
@@ -99,14 +109,16 @@ BOOL setupI2C(I2C_MODULE modID)
     UINT32 actualClock;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // Set the I2C baudrate, then enable the module
     actualClock = I2CSetFrequency(modID, SYSTEM_CLOCK, I2C_FREQ_1KHZ);
     I2CEnable(modID, TRUE);
+
+    return true;
 }
 
-BOOL StartTransferWithoutRestart(I2C_MODULE modID)
+bool my_i2c_handler::StartTransferWithoutRestart(I2C_MODULE modID)
 {
     // thrashable storage for a return value; used in testing
     unsigned int returnVal;
@@ -115,13 +127,13 @@ BOOL StartTransferWithoutRestart(I2C_MODULE modID)
     I2C_STATUS status;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // Wait for the bus to be idle, then start the transfer
     while(!I2CBusIsIdle(modID));
 
     returnVal = I2CStart(modID);
-    if(I2C_SUCCESS != returnVal) { return FALSE; }
+    if(I2C_SUCCESS != returnVal) { return false; }
 
     // Wait for the signal to complete
     do
@@ -130,10 +142,10 @@ BOOL StartTransferWithoutRestart(I2C_MODULE modID)
 
     } while ( !(status & I2C_START) );
 
-    return TRUE;
+    return true;
 }
 
-BOOL StartTransferWithRestart(I2C_MODULE modID)
+bool my_i2c_handler::StartTransferWithRestart(I2C_MODULE modID)
 {
     // thrashable storage for a return value; used in testing
     unsigned int returnVal;
@@ -142,11 +154,11 @@ BOOL StartTransferWithRestart(I2C_MODULE modID)
     I2C_STATUS status;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // Send the Restart) signal (I2C module does not have to be idle)
     returnVal = I2CRepeatStart(modID);
-    if(I2C_SUCCESS != returnVal) { return FALSE; }
+    if(I2C_SUCCESS != returnVal) { return false; }
 
     // Wait for the signal to complete
     do
@@ -155,16 +167,16 @@ BOOL StartTransferWithRestart(I2C_MODULE modID)
 
     } while ( !(status & I2C_START) );
 
-    return TRUE;
+    return true;
 }
 
-BOOL StopTransfer(I2C_MODULE modID)
+bool my_i2c_handler::StopTransfer(I2C_MODULE modID)
 {
     // records the status of the I2C module while waiting for it to stop
     I2C_STATUS status;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // Send the Stop signal
     I2CStop(modID);
@@ -177,37 +189,37 @@ BOOL StopTransfer(I2C_MODULE modID)
     } while ( !(status & I2C_STOP) );
 }
 
-BOOL TransmitOneByte(I2C_MODULE modID, UINT8 data)
+bool my_i2c_handler::TransmitOneByte(I2C_MODULE modID, UINT8 data)
 {
     // thrashable storage for a return value; used in testing
     unsigned int returnVal;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // Wait for the transmitter to be ready
     while(!I2CTransmitterIsReady(modID));
 
     // Transmit the byte
     returnVal = I2CSendByte(modID, data);
-    if(I2C_SUCCESS != returnVal) { return FALSE; }
+    if(I2C_SUCCESS != returnVal) { return false; }
 
     // Wait for the transmission to finish
     while(!I2CTransmissionHasCompleted(modID));
 
     // look for the acknowledge bit
-    if(!I2CByteWasAcknowledged(modID)) { return FALSE; }
+    if(!I2CByteWasAcknowledged(modID)) { return false; }
 
-    return TRUE;
+    return true;
 }
 
-BOOL ReceiveOneByte(I2C_MODULE modID, UINT8 *data)
+bool my_i2c_handler::ReceiveOneByte(I2C_MODULE modID, UINT8 *data)
 {
     unsigned int timeoutStart;
     unsigned int I2CtimeoutMS = 1000;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // attempt to enable the I2C module's receiver
     /*
@@ -217,7 +229,7 @@ BOOL ReceiveOneByte(I2C_MODULE modID, UINT8 *data)
     if(I2CReceiverEnable(modID, TRUE) != I2C_SUCCESS)
     {
         *data = 0;
-        return FALSE;
+        return false;
     }
 
     // wait for data to be available, then assign it when it is;
@@ -229,10 +241,10 @@ BOOL ReceiveOneByte(I2C_MODULE modID, UINT8 *data)
     while(!(I2CReceivedDataIsAvailable(modID)));
     *data = I2CGetByte(modID);
 
-    return TRUE;
+    return true;
 }
 
-BOOL TransmitNBytes(I2C_MODULE modID, char *str, unsigned int bytesToSend)
+bool my_i2c_handler::TransmitNBytes(I2C_MODULE modID, char *str, unsigned int bytesToSend)
 {
     /*
      * This function performs no initialization of the I2C line or the intended
@@ -240,13 +252,13 @@ BOOL TransmitNBytes(I2C_MODULE modID, char *str, unsigned int bytesToSend)
      */
     unsigned int byteCount;
     unsigned char c;
-    BOOL attempt = FALSE;
+    bool attempt = false;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // check that the number of bytes to send is not bogus
-    if (bytesToSend > strlen(str)) { return FALSE; }
+    if (bytesToSend > strlen(str)) { return false; }
 
     // initialize local variables, then send the string one byte at a time
     byteCount = 0;
@@ -260,44 +272,44 @@ BOOL TransmitNBytes(I2C_MODULE modID, char *str, unsigned int bytesToSend)
     }
 
     // transmission successful
-    return TRUE;
+    return true;
 }
 
-BOOL myI2CWriteToLine(I2C_MODULE modID, char* string, unsigned int lineNum)
+bool my_i2c_handler::myI2CWriteToLine(I2C_MODULE modID, char* string, unsigned int lineNum)
 {
     I2C_7_BIT_ADDRESS   SlaveAddress;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // start the I2C module and signal the CLS
     while(!StartTransferWithoutRestart(modID));
     I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, TWI_ADDR_PMOD_CLS, I2C_WRITE);
-    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return FALSE; }
+    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return false; }
 
     // send the cursor selection command, then send the string
     if (2 == lineNum)
     {
-        if (!TransmitNBytes(modID, (char*)set_line_two, strlen(set_line_two))) { return FALSE; }
+        if (!TransmitNBytes(modID, (char*)set_line_two, strlen(set_line_two))) { return false; }
     }
     else
     {
         // not line two, so assume line 1
-        if (!TransmitNBytes(modID, (char*)home_cursor, strlen(home_cursor))) { return FALSE; }
+        if (!TransmitNBytes(modID, (char*)home_cursor, strlen(home_cursor))) { return false; }
     }
-    if (!TransmitNBytes(modID, string, strlen(string))) { return FALSE; }
+    if (!TransmitNBytes(modID, string, strlen(string))) { return false; }
     StopTransfer(modID);
 
-    return TRUE;
+    return true;
 }
 
 
-BOOL myI2CWriteDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned int regAddr, UINT8 dataByte)
+bool my_i2c_handler::myI2CWriteDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned int regAddr, UINT8 dataByte)
 {
     I2C_7_BIT_ADDRESS   SlaveAddress;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // send a start bit and ready the specified register on the specified device
     while(!StartTransferWithoutRestart(modID));
@@ -306,33 +318,33 @@ BOOL myI2CWriteDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned i
     {
         // stop the transmission and return false
         StopTransfer(modID);
-        return FALSE;
+        return false;
     }
     if (!TransmitOneByte(modID, regAddr))
     {
         // stop the transmission and return false
         StopTransfer(modID);
-        return FALSE;
+        return false;
     }
     if (!TransmitOneByte(modID, dataByte))
     {
         // stop the transmission and return false
         StopTransfer(modID);
-        return FALSE;
+        return false;
     }
 
     // stop the transmission
     StopTransfer(modID);
 
-    return TRUE;
+    return true;
 }
 
-BOOL myI2CReadDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned int regAddr, UINT8 *dataByte)
+bool my_i2c_handler::myI2CReadDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned int regAddr, UINT8 *dataByte)
 {
     I2C_7_BIT_ADDRESS   SlaveAddress;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // send a start bit and ready the specified register on the specified device
     while(!StartTransferWithoutRestart(modID));
@@ -341,13 +353,13 @@ BOOL myI2CReadDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned in
     {
         // stop the transmission and return false
         StopTransfer(modID);
-        return FALSE;
+        return false;
     }
     if (!TransmitOneByte(modID, regAddr))
     {
         // stop the transmission and return false
         StopTransfer(modID);
-        return FALSE;
+        return false;
     }
 
     // now read that register
@@ -357,102 +369,102 @@ BOOL myI2CReadDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned in
     {
         // stop the transmission and return false
         StopTransfer(modID);
-        return FALSE;
+        return false;
     }
     if (!ReceiveOneByte(modID, dataByte))
     {
         // stop the transmission and return false
         StopTransfer(modID);
-        return FALSE;
+        return false;
     }
 
     // stop the transmission
     StopTransfer(modID);
 
-    return TRUE;
+    return true;
 }
 
-BOOL myI2CInitCLS(I2C_MODULE modID)
+bool my_i2c_handler::myI2CInitCLS(I2C_MODULE modID)
 {
     I2C_7_BIT_ADDRESS   SlaveAddress;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // start the I2C module, signal the CLS, and send setting strings
     while(!StartTransferWithoutRestart(modID));
     I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, TWI_ADDR_PMOD_CLS, I2C_WRITE);
-    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return FALSE; }
-    if (!TransmitNBytes(modID, (char*)enable_display, strlen(enable_display))) { return FALSE; }
-    if (!TransmitNBytes(modID, (char*)set_cursor, strlen(set_cursor))) { return FALSE; }
-    if (!TransmitNBytes(modID, (char*)home_cursor, strlen(home_cursor))) { return FALSE; }
-    if (!TransmitNBytes(modID, (char*)wrap_line, strlen(wrap_line))) { return FALSE; }
+    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return false; }
+    if (!TransmitNBytes(modID, (char*)enable_display, strlen(enable_display))) { return false; }
+    if (!TransmitNBytes(modID, (char*)set_cursor, strlen(set_cursor))) { return false; }
+    if (!TransmitNBytes(modID, (char*)home_cursor, strlen(home_cursor))) { return false; }
+    if (!TransmitNBytes(modID, (char*)wrap_line, strlen(wrap_line))) { return false; }
     StopTransfer(modID);
 
     // all went well, so return true
-    return TRUE;
+    return true;
 }
 
-BOOL myI2CInitTemp(I2C_MODULE modID)
+bool my_i2c_handler::myI2CInitTemp(I2C_MODULE modID)
 {
     // actually, with this temperature pmod, there is nothing to initialize;
     // keep this function in case you need to do something
 
     // all went well, so return true
-    return TRUE;
+    return true;
 }
 
-BOOL myI2CInitAccel(I2C_MODULE modID)
+bool my_i2c_handler::myI2CInitAccel(I2C_MODULE modID)
 {
     I2C_7_BIT_ADDRESS   SlaveAddress;
     UINT8               dataByte;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // send a start bit
     while(!StartTransferWithoutRestart(modID));
 
     // read POWER_CTL register
     I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, I2C_ADDR_PMOD_ACL, I2C_WRITE);
-    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return FALSE; }
-    if (!TransmitOneByte(modID, I2C_ADDR_PMOD_ACL_PWR)) { return FALSE; }
+    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return false; }
+    if (!TransmitOneByte(modID, I2C_ADDR_PMOD_ACL_PWR)) { return false; }
     while(!StartTransferWithRestart(modID));
     I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, I2C_ADDR_PMOD_ACL, I2C_READ);
-    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return FALSE; }
-    if (!ReceiveOneByte(modID, &dataByte)) { return FALSE; }
+    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return false; }
+    if (!ReceiveOneByte(modID, &dataByte)) { return false; }
 
     // set standby/measure bit to measure and write it back
     dataByte |= 0x08;
     while(!StartTransferWithRestart(modID));
     I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, I2C_ADDR_PMOD_ACL, I2C_WRITE);
-    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return FALSE; }
-    if (!TransmitOneByte(modID, I2C_ADDR_PMOD_ACL_PWR)) { return FALSE; }
-    if (!TransmitOneByte(modID, dataByte)) { return FALSE; }
+    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return false; }
+    if (!TransmitOneByte(modID, I2C_ADDR_PMOD_ACL_PWR)) { return false; }
+    if (!TransmitOneByte(modID, dataByte)) { return false; }
 
     // stop the transmission
     StopTransfer(modID);
 
     // all went well, so return true
-    return TRUE;
+    return true;
 }
 
-BOOL myI2CInitGyro(I2C_MODULE modID)
+bool my_i2c_handler::myI2CInitGyro(I2C_MODULE modID)
 {
     I2C_7_BIT_ADDRESS   SlaveAddress;
     UINT8               dataByte;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // read the control register that controls the power mode
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_CTRL_REG1, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_CTRL_REG1, &dataByte)) { return false; }
 
     // set control register bit 4 from low power mode (0) to normal mode (1)
     dataByte |= 0x08;
 
     // write back the modified control register
-    if (!myI2CWriteDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_CTRL_REG1, dataByte)) { return FALSE; }
+    if (!myI2CWriteDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_CTRL_REG1, dataByte)) { return false; }
 
 /*
     // send a start bit
@@ -460,31 +472,31 @@ BOOL myI2CInitGyro(I2C_MODULE modID)
 
     // read POWER_CTL register
     I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, I2C_ADDR_PMOD_GYRO, I2C_WRITE);
-    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return FALSE; }
-    if (!TransmitOneByte(modID, I2C_ADDR_PMOD_GYRO_CTRL_REG1)) { return FALSE; }
+    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return false; }
+    if (!TransmitOneByte(modID, I2C_ADDR_PMOD_GYRO_CTRL_REG1)) { return false; }
     while(!StartTransferWithRestart(modID));
     I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, I2C_ADDR_PMOD_GYRO, I2C_READ);
-    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return FALSE; }
-    if (!ReceiveOneByte(modID, &dataByte)) { return FALSE; }
+    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return false; }
+    if (!ReceiveOneByte(modID, &dataByte)) { return false; }
 
     // set control register bit 4 from low power mode (0) to normal mode (1)
     dataByte |= 0x08;
     while(!StartTransferWithRestart(modID));
     I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, I2C_ADDR_PMOD_GYRO, I2C_WRITE);
-    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return FALSE; }
-    if (!TransmitOneByte(modID, I2C_ADDR_PMOD_GYRO_CTRL_REG1)) { return FALSE; }
-    if (!TransmitOneByte(modID, dataByte)) { return FALSE; }
+    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return false; }
+    if (!TransmitOneByte(modID, I2C_ADDR_PMOD_GYRO_CTRL_REG1)) { return false; }
+    if (!TransmitOneByte(modID, dataByte)) { return false; }
 
     // stop the transmission
     StopTransfer(modID);
 */
 
     // all went well, so return true
-    return TRUE;
+    return true;
 }
 
 
-BOOL readTempInF(I2C_MODULE modID, float *fptr)
+bool my_i2c_handler::readTempInF(I2C_MODULE modID, float *fptr)
 {
     I2C_7_BIT_ADDRESS   SlaveAddress;
     UINT8               dataByte;
@@ -492,21 +504,21 @@ BOOL readTempInF(I2C_MODULE modID, float *fptr)
     float               temperature;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // send a start signal to the I2C module
     while(!StartTransferWithoutRestart(modID));
 
     // prepare the temperature pmod for reading
     I2C_FORMAT_7_BIT_ADDRESS(SlaveAddress, I2C_ADDR_PMOD_TEMP, I2C_READ);
-    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return FALSE; }
+    if (!TransmitOneByte(modID, SlaveAddress.byte)) { return false; }
 
     // the first read gets the high byte
-    if (!ReceiveOneByte(modID, &dataByte)) { return FALSE; }
+    if (!ReceiveOneByte(modID, &dataByte)) { return false; }
     dataInt = dataByte << 8;
 
     // the second read gets the low byte
-    if (!ReceiveOneByte(modID, &dataByte)) { return FALSE; }
+    if (!ReceiveOneByte(modID, &dataByte)) { return false; }
     dataInt |= dataByte;
 
     // convert the bit signal into degrees C according to the reference manual
@@ -519,10 +531,10 @@ BOOL readTempInF(I2C_MODULE modID, float *fptr)
 
     *fptr = temperature;
 
-    return TRUE;
+    return true;
 }
 
-BOOL readAccel(I2C_MODULE modID, ACCEL_DATA *argData)
+bool my_i2c_handler::readAccel(I2C_MODULE modID, ACCEL_DATA *argData)
 {
     INT16 localX;
     INT16 localY;
@@ -530,27 +542,27 @@ BOOL readAccel(I2C_MODULE modID, ACCEL_DATA *argData)
     UINT8 dataByte;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // read high byte of X register, then the low byte
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_X1, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_X1, &dataByte)) { return false; }
     localX = dataByte << 8;
 
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_X0, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_X0, &dataByte)) { return false; }
     localX |= dataByte;
 
     // read high byte of Y register, then the low byte
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_Y1, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_Y1, &dataByte)) { return false; }
     localY = dataByte << 8;
 
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_Y0, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_Y0, &dataByte)) { return false; }
     localY |= dataByte;
 
     // read high byte of Z register, then the low byte
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_Z1, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_Z1, &dataByte)) { return false; }
     localZ = dataByte << 8;
 
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_Z0, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_Z0, &dataByte)) { return false; }
     localZ |= dataByte;
 
     // all data gathered successfully, so now multiply the data by the
@@ -560,10 +572,10 @@ BOOL readAccel(I2C_MODULE modID, ACCEL_DATA *argData)
     argData->Y = (float)localY * (4.0 / 1024.0);
     argData->Z = (float)localZ * (4.0 / 1024.0);
 
-    return TRUE;
+    return true;
 }
 
-BOOL readGyro(I2C_MODULE modID, GYRO_DATA *argData)
+bool my_i2c_handler::readGyro(I2C_MODULE modID, GYRO_DATA *argData)
 {
     I2C_7_BIT_ADDRESS   SlaveAddress;
     UINT8 regAddr;
@@ -574,24 +586,24 @@ BOOL readGyro(I2C_MODULE modID, GYRO_DATA *argData)
     UINT8 dataByte;
 
     // check that we are dealing with a valid I2C module
-    if (!moduleIsValid(modID)) { return FALSE; }
+    if (!moduleIsValid(modID)) { return false; }
 
     // read high byte of X register, then the low byte
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_XH, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_XH, &dataByte)) { return false; }
     localX = dataByte << 8;
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_XL, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_XL, &dataByte)) { return false; }
     localX |= dataByte;
 
     // read high byte of Y register, then the low byte
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_YH, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_YH, &dataByte)) { return false; }
     localY = dataByte << 8;
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_YL, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_YL, &dataByte)) { return false; }
     localY |= dataByte;
 
     // read high byte of Z register, then the low byte
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_ZH, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_ZH, &dataByte)) { return false; }
     localZ = dataByte << 8;
-    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_ZL, &dataByte)) { return FALSE; }
+    if (!myI2CReadDeviceRegister(modID, I2C_ADDR_PMOD_GYRO, I2C_ADDR_PMOD_GYRO_ZL, &dataByte)) { return false; }
     localZ |= dataByte;
 
     // all data gathered successfully, so now multiply the data by the
@@ -604,6 +616,6 @@ BOOL readGyro(I2C_MODULE modID, GYRO_DATA *argData)
     // stop the transmission
     StopTransfer(modID);
 
-    return TRUE;
+    return true;
 }
 

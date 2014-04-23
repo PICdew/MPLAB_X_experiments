@@ -47,24 +47,34 @@ typedef struct gyroData
    float Z;
 } GYRO_DATA;
 
-BOOL moduleIsValid(I2C_MODULE modID);
-BOOL setupI2C(I2C_MODULE modID);
-BOOL StartTransferWithoutRestart(I2C_MODULE modID);
-BOOL StartTransferWithRestart(I2C_MODULE modID);
-BOOL StopTransfer(I2C_MODULE modID);
-BOOL TransmitOneByte(I2C_MODULE modID, UINT8 data);
-BOOL ReceiveOneByte(I2C_MODULE modID, UINT8 *data);
-BOOL TransmitNBytes(I2C_MODULE modID, char *str, unsigned int bytesToSend);
-BOOL myI2CWriteToLine(I2C_MODULE modID, char* string, unsigned int lineNum);
-BOOL myI2CWriteDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned int regAddr, UINT8 dataByte);
-BOOL myI2CReadDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned int regAddr, UINT8 *dataByte);
-BOOL myI2CInitCLS(I2C_MODULE modID);
-BOOL myI2CInitTemp(I2C_MODULE modID);
-BOOL myI2CInitAccel(I2C_MODULE modID);
-BOOL myI2CInitGyro(I2C_MODULE modID);
-BOOL readTempInF(I2C_MODULE modID, float *fptr);
-BOOL readAccel(I2C_MODULE modID, ACCEL_DATA *argData);
-BOOL readGyro(I2C_MODULE modID, GYRO_DATA *argData);
+class my_i2c_handler
+{
+public:
+   static my_i2c_handler& get_instance(void);
+   
+   bool moduleIsValid(I2C_MODULE modID);
+   bool setupI2C(I2C_MODULE modID);
+   bool StartTransferWithoutRestart(I2C_MODULE modID);
+   bool StartTransferWithRestart(I2C_MODULE modID);
+   bool StopTransfer(I2C_MODULE modID);
+   bool TransmitOneByte(I2C_MODULE modID, UINT8 data);
+   bool ReceiveOneByte(I2C_MODULE modID, UINT8 *data);
+   bool TransmitNBytes(I2C_MODULE modID, char *str, unsigned int bytesToSend);
+   bool myI2CWriteToLine(I2C_MODULE modID, char* string, unsigned int lineNum);
+   bool myI2CWriteDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned int regAddr, UINT8 dataByte);
+   bool myI2CReadDeviceRegister(I2C_MODULE modID, unsigned int devAddr, unsigned int regAddr, UINT8 *dataByte);
+   bool myI2CInitCLS(I2C_MODULE modID);
+   bool myI2CInitTemp(I2C_MODULE modID);
+   bool myI2CInitAccel(I2C_MODULE modID);
+   bool myI2CInitGyro(I2C_MODULE modID);
+   bool readTempInF(I2C_MODULE modID, float *fptr);
+   bool readAccel(I2C_MODULE modID, ACCEL_DATA *argData);
+   bool readGyro(I2C_MODULE modID, GYRO_DATA *argData);
+
+private:
+   my_i2c_handler();
+};
+
 
 
 
