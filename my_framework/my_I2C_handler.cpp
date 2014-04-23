@@ -696,102 +696,86 @@ bool my_I2C_handler::acl_init(void)
    I2C_7_BIT_ADDRESS slave_address;
    UINT8 data_byte;
 
-   if (!start_transfer(false))
+   // read the power control register, set the standby/measure bit to
+   // "measure", then write it back
+   if (!read_device_register(I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_PWR, &data_byte))
    {
       this_ret_val = false;
    }
 
    if (this_ret_val)
    {
-      I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_ACL, I2C_WRITE);
-      if (!transmit_one_byte(slave_address.byte))
+      data_byte |= 0x08;
+      if (!write_device_register(I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_PWR, data_byte))
       {
          this_ret_val = false;
       }
+      read_device_register(I2C_ADDR_PMOD_ACL, I2C_ADDR_PMOD_ACL_PWR, &data_byte);
    }
-
-   if (this_ret_val)
-   {
-      if (!transmit_one_byte(I2C_ADDR_PMOD_ACL_PWR))
-      {
-         this_ret_val = false;
-      }
-   }
-
-   if (this_ret_val)
-   {
-      if (!start_transfer(true))
-      {
-         this_ret_val = false;
-      }
-   }
-
-   if (this_ret_val)
-   {
-      I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_ACL, I2C_READ);
-      if (!transmit_one_byte(slave_address.byte))
-      {
-         this_ret_val = false;
-      }
-   }
-
-   if (this_ret_val)
-   {
-      if (!transmit_one_byte(slave_address.byte))
-      {
-         this_ret_val = false;
-      }
-   }
-
-   if (this_ret_val)
-   {
-      if (!receive_one_byte(&data_byte))
-      {
-         this_ret_val = false;
-      }
-   }
-
-   if (this_ret_val)
-   {
-      // set the standby/measure bit to "measure" and write back the power
-      // regiser to the accelerometer
-      if (!start_transfer(true))
-      {
-         this_ret_val = false;
-      }
-   }
-
-   if (this_ret_val)
-   {
-      I2C_FORMAT_7_BIT_ADDRESS(slave_address, I2C_ADDR_PMOD_ACL, I2C_WRITE);
-      if (!transmit_one_byte(slave_address.byte))
-      {
-         this_ret_val = false;
-      }
-   }
-
-   if (this_ret_val)
-   {
-      if (!transmit_one_byte(I2C_ADDR_PMOD_ACL_PWR))
-      {
-         this_ret_val = false;
-      }
-   }
-
-   if (this_ret_val)
-   {
-      if (!transmit_one_byte(data_byte))
-      {
-         this_ret_val = false;
-      }
-   }
-
-   stop_transfer();
 
    return this_ret_val;
 }
 
 bool my_I2C_handler::acl_read(ACCEL_DATA *data_ptr)
 {
+   bool this_ret_val = true;
+   INT16 local_data[] = { 0, 0, 0 };
+   unsigned int register_addresses[] = {
+      I2C_ADDR_PMOD_ACL_X1,
+      I2C_ADDR_PMOD_ACL_X0,
+      I2C_ADDR_PMOD_ACL_Y1,
+      I2C_ADDR_PMOD_ACL_Y0,
+      I2C_ADDR_PMOD_ACL_Z1,
+      I2C_ADDR_PMOD_ACL_Z0
+   };
+   UINT8 data_byte = 0;
 
+   if (0 == data_ptr)
+   {
+      this_ret_val = false;
+   }
+
+   for (int data_index = 0; data_index < 3; data_index += 1)
+   {
+      if (this_ret_val)
+      {
+         if (!read_device_register(
+                 I2C_ADDR_PMOD_ACL,
+                 register_addresses[data_index * 2],
+                 &data_byte))
+         {
+            this_ret_val = false;
+            break;
+         }
+         else
+         {
+            local_data[data_index] = data_byte << 8;
+         }
+      }
+
+      if (this_ret_val)
+      {
+         if (!read_device_register(
+                 I2C_ADDR_PMOD_ACL,
+                 register_addresses[(data_index * 2) + 1],
+                 &data_byte))
+         {
+            this_ret_val = false;
+            break;
+         }
+         else
+         {
+            local_data[data_index] |= data_byte;
+         }
+      }
+   }
+
+   // all data gathered successfully, so now multiply the raw bits by the
+   // conversion factor so that it is valid floating data
+   // (??how was this done again??)
+   data_ptr->X = (float)local_data[0] * (4.0f / 1024.0f);
+   data_ptr->Y = (float)local_data[1] * (4.0f / 1024.0f);
+   data_ptr->Z = (float)local_data[2] * (4.0f / 1024.0f);
+
+   return this_ret_val;
 }

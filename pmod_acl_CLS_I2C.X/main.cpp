@@ -33,9 +33,6 @@ int main(void)
 {
    bool ret_val = false;
 
-   int i = 0;
-   char message[20];
-
    my_delay_timer delay_timer_ref = my_delay_timer::get_instance();
    delay_timer_ref.init(SYS_CLOCK / PB_DIV);
    INTEnableSystemMultiVectoredInt();
@@ -59,7 +56,7 @@ int main(void)
       WOOP_WOOP_WOOP();
    }
 
-   ret_val = i2c_driver.temp_init();
+   ret_val = i2c_driver.acl_init();
    if (!ret_val)
    {
       WOOP_WOOP_WOOP();
@@ -70,25 +67,25 @@ int main(void)
    PORTClearBits(IOPORT_B, BIT_10);
 
    // loop forever
-   i = 0;
    bool LED_is_on = false;
-   float temp = 0.0f;
+   ACCEL_DATA acl_data;
+   char message[20];
+
    while(1)
    {
-      ret_val = i2c_driver.temp_read(&temp, true);
-      if (ret_val)
-      {
-         snprintf(message, CLS_LINE_SIZE, "temp = '%.3f'", temp);
-      }
-      else
-      {
-         snprintf(message, CLS_LINE_SIZE, "temp = XXXX");
-      }
-
-      i2c_driver.CLS_write_to_line(message, 1);
-
-      snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
-      i2c_driver.CLS_write_to_line(message, 2);
+//      ret_val = i2c_driver.acl_read(&acl_data);
+//      if (ret_val)
+//      {
+//         snprintf(message, CLS_LINE_SIZE, "X=%5.2f;;Y=%5.2f", acl_data.X, acl_data.Y);
+//         i2c_driver.CLS_write_to_line(message, 1);
+//
+//         snprintf(message, CLS_LINE_SIZE, "Z=%5.2f", acl_data.Z);
+//         i2c_driver.CLS_write_to_line(message, 2);
+//      }
+//      else
+//      {
+//         snprintf(message, CLS_LINE_SIZE, "acl = XXXX");
+//      }
 
       if (LED_is_on)
       {
@@ -101,7 +98,6 @@ int main(void)
          LED_is_on = true;
       }
 
-      i++;
       delay_timer_ref.delay_ms(200);
    }
 }

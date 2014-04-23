@@ -35,16 +35,16 @@ const unsigned int CLS_LINE_SIZE = 17;
 
 typedef struct accelData
 {
-    float X;
-    float Y;
-    float Z;
+   float X;
+   float Y;
+   float Z;
 } ACCEL_DATA;
 
 typedef struct gyroData
 {
-    float X;
-    float Y;
-    float Z;
+   float X;
+   float Y;
+   float Z;
 } GYRO_DATA;
  
 class my_I2C_handler
