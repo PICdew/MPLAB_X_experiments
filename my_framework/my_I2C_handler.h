@@ -51,28 +51,28 @@ class my_I2C_handler
 {
 public:
    static my_I2C_handler& get_instance(void);
-   bool init(I2C_MODULE module_ID, unsigned int sys_clock, unsigned int desired_i2c_freq);
+   int init(I2C_MODULE module_ID, unsigned int sys_clock, unsigned int desired_i2c_freq);
    
-   bool CLS_init(void);
-   bool CLS_write_to_line(const char* string, unsigned int lineNum);
+   int CLS_init(void);
+   int CLS_write_to_line(const char* string, unsigned int lineNum);
 
-   bool temp_init(void);
-   bool temp_read(float *f_ptr, bool read_in_F);
+   int temp_init(void);
+   int temp_read(float *f_ptr, bool read_in_F);
 
-   bool acl_init(void);
-   bool acl_read(ACCEL_DATA *data_ptr);
+   int acl_init(void);
+   int acl_read(ACCEL_DATA *data_ptr);
 
 private:
    my_I2C_handler(void);
    
-   bool module_is_valid(I2C_MODULE module_ID);
-   bool start_transfer(bool start_with_restart);
-   bool stop_transfer(void);
-   bool transmit_one_byte(UINT8 data);
-   bool transmit_n_bytes(const char *str, unsigned int bytesToSend);
-   bool receive_one_byte(UINT8 *data);
-   bool write_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 data_byte);
-   bool read_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 *data_byte_ptr);
+   int module_is_valid(I2C_MODULE module_ID);
+   int start_transfer(bool start_with_restart);
+   int stop_transfer(void);
+   int transmit_one_byte(UINT8 data);
+   int transmit_n_bytes(const char *str, unsigned int bytesToSend);
+   int receive_one_byte(UINT8 *data);
+   int write_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 data_byte);
+   int read_device_register(unsigned int dev_addr, unsigned int reg_addr, UINT8 *data_byte_ptr);
 
 
 

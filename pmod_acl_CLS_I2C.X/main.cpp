@@ -38,34 +38,13 @@ int main(void)
    INTEnableSystemMultiVectoredInt();
 
    my_I2C_handler i2c_driver = my_I2C_handler::get_instance();
-   ret_val = i2c_driver.init(I2C2, SYS_CLOCK / PB_DIV, DESIRED_I2C_FREQ_1KHZ);
-   if (!ret_val)
-   {
-      WOOP_WOOP_WOOP();
-   }
+   ret_val = i2c_driver.init(I2C2, SYS_CLOCK, DESIRED_I2C_FREQ_1KHZ);
 
    ret_val = i2c_driver.CLS_init();
-   if (!ret_val)
-   {
-      WOOP_WOOP_WOOP();
-   }
 
    ret_val = i2c_driver.CLS_write_to_line("CLS initialized", 1);
-   if (!ret_val)
-   {
-      WOOP_WOOP_WOOP();
-   }
 
    ret_val = i2c_driver.acl_init();
-   if (!ret_val)
-   {
-      i2c_driver.CLS_write_to_line("acl failed", 1);
-      //WOOP_WOOP_WOOP();
-   }
-   else
-   {
-      i2c_driver.CLS_write_to_line("acl success", 1);
-   }
 
 
    // turn an LED on and off for a little light show because...reasons
@@ -79,35 +58,35 @@ int main(void)
    int i = 0;
    while(1)
    {
-      //ret_val = i2c_driver.acl_read(&acl_data);
-//      if (ret_val)
-//      {
-//         PORTSetBits(IOPORT_B, BIT_12);
-//         PORTClearBits(IOPORT_B, BIT_13);
-//      }
-//      else
-//      {
-//         PORTSetBits(IOPORT_B, BIT_13);
-//         PORTClearBits(IOPORT_B, BIT_12);
-//      }
-//      snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
-//      i2c_driver.CLS_write_to_line(message, 1);
-//      i += 1;
       ret_val = i2c_driver.acl_read(&acl_data);
       if (ret_val)
       {
-         snprintf(message, CLS_LINE_SIZE, "X=%5.2f;;Y=%5.2f", acl_data.X, acl_data.Y);
-         i2c_driver.CLS_write_to_line(message, 1);
-
-         snprintf(message, CLS_LINE_SIZE, "Z=%5.2f", acl_data.Z);
-         i2c_driver.CLS_write_to_line(message, 2);
+         PORTToggleBits(IOPORT_B, BIT_12);
+         PORTClearBits(IOPORT_B, BIT_13);
       }
       else
       {
-         snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
-         i2c_driver.CLS_write_to_line(message, 1);
-         i += 1;
+         PORTToggleBits(IOPORT_B, BIT_13);
+         PORTClearBits(IOPORT_B, BIT_12);
       }
+//      snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
+//      i2c_driver.CLS_write_to_line(message, 1);
+//      i += 1;
+//      ret_val = i2c_driver.acl_read(&acl_data);
+//      if (ret_val)
+//      {
+//         snprintf(message, CLS_LINE_SIZE, "X=%5.2f;;Y=%5.2f", acl_data.X, acl_data.Y);
+//         i2c_driver.CLS_write_to_line(message, 1);
+//
+//         snprintf(message, CLS_LINE_SIZE, "Z=%5.2f", acl_data.Z);
+//         i2c_driver.CLS_write_to_line(message, 2);
+//      }
+//      else
+//      {
+//         snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
+//         i2c_driver.CLS_write_to_line(message, 1);
+//         i += 1;
+//      }
 
       if (LED_is_on)
       {
