@@ -47,14 +47,17 @@
 // calculations
 #define PB_DIV              2
 
-// Note: This is defined because Tx_PS_1_SOMEPRSCALAR is a bitshift meant for
-// a control register, not the prescalar value itself
-#define PS_256              256
-
 // define the timer period constant for the delay timer
 #define T1_TOGGLES_PER_SEC  1000
-#define T1_TICK_PR          SYSTEM_CLOCK/PB_DIV/PS_256/T1_TOGGLES_PER_SEC
-#define T1_OPEN_CONFIG      T1_ON | T1_SOURCE_INT | T1_PS_1_256
+#define T1_PS                 64
+#define T1_TICK_PR          SYSTEM_CLOCK/PB_DIV/T1_PS/T1_TOGGLES_PER_SEC
+#define T1_OPEN_CONFIG      T1_ON | T1_SOURCE_INT | T1_PS_1_64
+
+// define the timer period for the servo timer
+#define T2_TOGGLES_PER_SEC  10000
+#define T2_PS              32
+#define T2_TICK_PR          SYSTEM_CLOCK/PB_DIV/T2_PS/T2_TOGGLES_PER_SEC
+#define T2_OPEN_CONFIG      T2_ON | T2_SOURCE_INT | T2_PS_1_32
 
 // these are the I2C addresses of the warious daisy chained pmods
 #define I2C_ADDR_PMOD_TEMP      0x4B
@@ -108,12 +111,73 @@ const unsigned char set_line_two[] =    {27, '[', '1', ';', '0', 'H', '\0'};
 
 unsigned int gMillisecondsInOperation;
 
-void __ISR(_TIMER_1_VECTOR, IPL7AUTO) Timer1Handler(void)
+extern void __ISR(_TIMER_1_VECTOR, IPL7AUTO) Timer1Handler(void)
 {
     gMillisecondsInOperation++;
 
     // clear the interrupt flag
     mT1ClearIntFlag();
+}
+
+int desired_rotation_degrees;
+
+extern void __ISR(_TIMER_2_VECTOR, IPL7AUTO) Timer2Handler(void)
+{
+   static int counter = 0;
+   static int prev_desired_rotation_degrees = 0;
+   static int counter_limit = 0;
+   int microsecond_offset_from_1500 = 0;
+
+   // According to this wikipedia article and the accompanying picture, pulse
+   // width modulation (PWM) is defined as activity over a 20ms interval.
+   // Standard servos are controlled by providing a PWM signal between 1000
+   // microseconds and 2000 microsecond pulse once every 20ms.  A 1000
+   // microsecond pulse will make a standard servo -90 degrees from its neutral
+   // position, a 1500 microsecond pulse will make it move to the 0 degree
+   // position, and a 2000 microsecond pulse will make it move to the +90
+   // degree position.  Anywhere in between those values will cause the servo
+   // to move linearly somewhere in the middle (that is, a 1250 microsecond
+   // pulse will make it move -45 degrees from neutral, and a 1750 microsecond
+   // pulse will make it move +45 degrees from neutral).
+   //
+   // Thus, millisecond resolution for this timer is not appropriate.
+   //
+   // http://en.wikipedia.org/wiki/Servo_control, 
+   // http://en.wikipedia.org/wiki/File:Sinais_controle_servomotor.JPG
+
+
+   // we have a 0.1 millisecond timer (this interrupt will go off 10,000 times
+   // per second according to the tiemr configuration), so we will be able to
+   // have (1000 microsecond range for -90 to +90 / 100 microsecond timer
+   // frequency) = 10 distinct positions.
+
+   if (desired_rotation_degrees != prev_desired_rotation_degrees)
+   {
+      microsecond_offset_from_1500 = desired_rotation_degrees * 1000;
+      microsecond_offset_from_1500 /= 90;
+      counter_limit = (1500 + microsecond_offset_from_1500) / 100;
+
+      prev_desired_rotation_degrees = desired_rotation_degrees;
+   }
+
+   if (counter < counter_limit)
+   {
+      PORTSetBits(IOPORT_G, BIT_12);
+      counter += 1;
+   }
+   else
+   {
+      PORTClearBits(IOPORT_G, BIT_12);
+      counter += 1;
+
+      if (counter == 200)
+      {
+         counter = 0;
+      }
+   }
+
+    // clear the interrupt flag
+    mT2ClearIntFlag();
 }
 
 void delayMS(unsigned int milliseconds)
@@ -652,35 +716,26 @@ BOOL readGyro(I2C_MODULE modID, GYRO_DATA *argData)
 
 int main(void)
 {
-    int i;
-    BOOL readSuccess;
-    float temperature;
-    ACCEL_DATA myAccelData;
-    GYRO_DATA myGyroData;
-    unsigned char message[20];
-
-    // initialize local variables
-    i = 0;
-    readSuccess = FALSE;
-    temperature = 0.0;
-    myAccelData.X = 0.0;
-    myAccelData.Y = 0.0;
-    myAccelData.Z = 0.0;
-    myGyroData.X = 0.0;
-    myGyroData.Y = 0.0;
-    myGyroData.Z = 0.0;
-    *message = 0;
+    int i = 0;
+    char message[20];
 
     // initialize globals
     gMillisecondsInOperation = 0;
+    desired_rotation_degrees = 0;
 
     // setup the LEDs
     PORTSetPinsDigitalOut(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
     PORTClearBits(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
 
+    PORTSetPinsDigitalOut(IOPORT_G, BIT_12);
+    PORTClearBits(IOPORT_G, BIT_12);
+
     // open the timer that will provide us with simple delay operations
     OpenTimer1(T1_OPEN_CONFIG, T1_TICK_PR);
     ConfigIntTimer1(T1_INT_ON | T1_INT_PRIOR_2);
+
+    OpenTimer2(T2_OPEN_CONFIG, T2_TICK_PR);
+    ConfigIntTimer2(T2_INT_ON | T2_INT_PRIOR_2);
 
     // enable multivector interrupts so the timer1 interrupt vector can lead to
     // the interrupt handler;
@@ -700,56 +755,24 @@ int main(void)
     }
     myI2CWriteToLine(I2C2, "CLS initialized", 1);
 
-    if (!myI2CInitAccel(I2C2))
-    {
-        myI2CWriteToLine(I2C2, "Accel init fail", 1);
-        while(1);
-    }
-    myI2CWriteToLine(I2C2, "Accel initialized", 1);
-
     // I2C initialization done; reset onboard LEDs for use in other things
     PORTClearBits(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
 
     // loop forever
     while(1)
     {
+       snprintf(message, CLS_LINE_SIZE, "%d", desired_rotation_degrees);
+       myI2CWriteToLine(I2C2, "CLS initialized", 1);
+
+        delayMS(500);
+
         PORTToggleBits(IOPORT_B, BIT_13);
-        delayMS(200);
 
-        readSuccess = TRUE;
-
-        if (!readAccel(I2C2, &myAccelData))
+        desired_rotation_degrees += 10;
+        if (desired_rotation_degrees > 90)
         {
-            myI2CWriteToLine(I2C2, "Accel read fail", 1);
-            readSuccess = FALSE;
+           desired_rotation_degrees = -85;
         }
-//
-//        if (!readTempInF(I2C2, &temperature))
-//        {
-//            myI2CWriteToLine(I2C2, "temp read fail", 1);
-//            readSuccess = FALSE;
-//        }
-//
-//        if (!readGyro(I2C2, &myGyroData))
-//        {
-//            myI2CWriteToLine(I2C2, "gyro read fail", 1);
-//            readSuccess = FALSE;
-//        }
-
-        if (readSuccess)
-        {
-            snprintf(message, CLS_LINE_SIZE, "X:%5.2f Y:%5.2f", myAccelData.X, myAccelData.Y);
-            myI2CWriteToLine(I2C2, message, 1);
-            snprintf(message, CLS_LINE_SIZE, "Z:%5.2f", myAccelData.Z);
-            myI2CWriteToLine(I2C2, message, 2);
-        }
-        else
-        {
-            snprintf(message, CLS_LINE_SIZE, "i = '%d'", i);
-            myI2CWriteToLine(I2C2, message, 1);
-            i += 1;
-        }
-
     }
 }
 

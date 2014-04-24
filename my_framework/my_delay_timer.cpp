@@ -34,11 +34,22 @@ void my_delay_timer::init(unsigned int pb_clock)
    }
    else
    {
+      // The pb clock is expected to be at 40,000,000 Hz (cross your fingers
+      // and hope that it is provided, or else this calculation may be a tad
+      // off, but probably not too much.
+      // 40,000,000 / prescaler=64 = 625,000
+      // 625,000 / ticks_per_sec=1000 = 625
+      // 625 is an integer value, no rounding necessary.
+      //
+      // If the pb clock is different than 40MHz, then this calculation will
+      // likely run into decimal rounding to get an integer value, but the
+      // difference shouldn't be too much.
+
       unsigned int ticks_per_sec = 1000;
-      unsigned int t1_tick_period = pb_clock / 256 / ticks_per_sec;
+      unsigned int t1_tick_period = pb_clock / 64 / ticks_per_sec;
 
       // activate the timer for my "delay milliseconds" function
-      OpenTimer1(T1_ON | T1_SOURCE_INT | T1_PS_1_256, t1_tick_period);
+      OpenTimer1(T1_ON | T1_SOURCE_INT | T1_PS_1_64, t1_tick_period);
       ConfigIntTimer1(T1_INT_ON | T1_INT_PRIOR_1);
 
       m_has_been_initialized = true;
