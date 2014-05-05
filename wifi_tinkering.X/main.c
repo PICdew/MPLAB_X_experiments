@@ -102,6 +102,9 @@ MSG_WIFI g_wifi_message_structure;
 
 void TCPIP_send_receive(void)
 {
+   char message[20];
+   static int function_entry_count = 0;
+
    static TCP_SOCKET	MySocket;
    static enum _TCPServerState
    {
@@ -116,6 +119,10 @@ void TCPIP_send_receive(void)
 
    WORD space_in_tx_buffer = 0;
 
+   function_entry_count += 1;
+   //snprintf(message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
+   //myI2CWriteToLine(I2C2, message, 2);
+
    switch (TCPServerState)
    {
       // ---------------------------- HOME -------------------------------
@@ -124,6 +131,7 @@ void TCPIP_send_receive(void)
       MySocket = TCPOpen(0, TCP_OPEN_SERVER, SERVER_PORT, TCP_PURPOSE_GENERIC_TCP_SERVER);
       if (MySocket == INVALID_SOCKET)
       {
+         //myI2CWriteToLine(I2C2, "bad socket", 1);
          return;
       }
 
@@ -136,6 +144,7 @@ void TCPIP_send_receive(void)
       // See if anyone is connected to us
       if (!TCPIsConnected(MySocket))
       {
+         //myI2CWriteToLine(I2C2, "no one listening", 1);
          return;
       }
 
@@ -152,6 +161,7 @@ void TCPIP_send_receive(void)
          if (curr_rx_byte_count == prev_rx_byte_count)
          {
             // data has stopped coming, so read the data
+            //myI2CWriteToLine(I2C2, "reading data", 1);
             bytes_read = TCPGetArray(MySocket, g_wifi_message_structure.rxBuf, WIFI_MSG_BUF_SIZE);
          }
       }
@@ -164,6 +174,7 @@ void TCPIP_send_receive(void)
       if (space_in_tx_buffer >= WIFI_MSG_BUF_SIZE)
       {
          // space is available, so send out a message
+         //myI2CWriteToLine(I2C2, "sending data", 1);
          memcpy(g_wifi_message_structure.txBuf, "hi there!", WIFI_MSG_BUF_SIZE);
          TCPPutArray(MySocket, g_wifi_message_structure.txBuf, WIFI_MSG_BUF_SIZE);
       }
@@ -247,10 +258,7 @@ int main(void)
 
    while (1)
    {
-      i += 1;
       PORTToggleBits(IOPORT_B, BIT_10);
-      snprintf(message, CLS_LINE_SIZE, "%d, %d", i, gMillisecondsInOperation);
-      myI2CWriteToLine(I2C2, message, 1);
 
       // extract the sections of the IP address and print them
       // Note: Network byte order, including IP addresses, are "big endian",
