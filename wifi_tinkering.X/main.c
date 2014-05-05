@@ -64,42 +64,24 @@
 #define T1_TOGGLES_PER_SEC    1000
 #define T1_TICK_PR            SYSTEM_CLOCK/PB_DIV/T1_PS/T1_TOGGLES_PER_SEC
 #define T1_OPEN_CONFIG        T1_ON | T1_SOURCE_INT | T1_PS_1_64
-#define T2_PS                 256
-#define T2_TOGGLES_PER_SEC    10
-#define T2_TICK_PR            SYSTEM_CLOCK/PB_DIV/T2_PS/T2_TOGGLES_PER_SEC
-#define T2_OPEN_CONFIG        T2_ON | T2_SOURCE_INT | T2_PS_1_256
 
 unsigned int gMillisecondsInOperation;
 
+void TCPIP_send_receive(void);
+
 void __ISR(_TIMER_1_VECTOR, IPL7AUTO) Timer1Handler(void)
 {
+   // clear the interrupt flag first because the TCPIP stack handling may block
+   // for a few dozen seconds when it first connects, and we don't want this
+   // timer to stop counting the milliseconds in operation
+   mT1ClearIntFlag();
+
    gMillisecondsInOperation++;
 
-   // clear the interrupt flag
-   mT1ClearIntFlag();
-}
-
-unsigned int g_second_timer;
-
-void __ISR(_TIMER_2_VECTOR, IPL7AUTO) TCPIP_stack_service_thing(void)
-{
-   g_second_timer += 1;
-//      // perform normal stack tasks including checking for incoming
-//      // packets and calling appropriate handlers
-//      StackTask();
-//
-//      #if defined(WF_CS_TRIS)
-//         #if !defined(MRF24WG)
-//            if (gRFModuleVer1209orLater)
-//         #endif
-//         WiFiTask();
-//      #endif
-//
-//      // This tasks invokes each of the core stack application tasks
-//      StackApplications();
-
-   // clear the interrupt flag
-   mT2ClearIntFlag();
+   if (0 == gMillisecondsInOperation % 200)
+   {
+      TCPIP_send_receive();
+   }
 }
 
 void delayMS(unsigned int milliseconds)
@@ -108,7 +90,98 @@ void delayMS(unsigned int milliseconds)
    while ((gMillisecondsInOperation - millisecondCount) < milliseconds);
 }
 
+#define SERVER_PORT	22              // Server port
+#define WIFI_MSG_BUF_SIZE 150
+typedef struct MSG_WIFI         // Structure for prvRxTx messages
+{
+   BYTE rxBuf[WIFI_MSG_BUF_SIZE];
+   BYTE txBuf[WIFI_MSG_BUF_SIZE];
+} MSG_WIFI;
 
+MSG_WIFI g_wifi_message_structure;
+
+void TCPIP_send_receive(void)
+{
+   static TCP_SOCKET	MySocket;
+   static enum _TCPServerState
+   {
+      SM_HOME = 0,
+      SM_LISTENING,
+      SM_CLOSING,
+   } TCPServerState = SM_HOME;
+
+   static WORD prev_rx_byte_count = 0;
+   WORD curr_rx_byte_count = 0;
+   WORD bytes_read = 0;
+
+   WORD space_in_tx_buffer = 0;
+
+   switch (TCPServerState)
+   {
+      // ---------------------------- HOME -------------------------------
+   case SM_HOME:
+      // Allocate a socket for this server to listen and accept connections on
+      MySocket = TCPOpen(0, TCP_OPEN_SERVER, SERVER_PORT, TCP_PURPOSE_GENERIC_TCP_SERVER);
+      if (MySocket == INVALID_SOCKET)
+      {
+         return;
+      }
+
+      TCPServerState = SM_LISTENING;
+      break;
+
+   case SM_LISTENING:
+
+
+      // See if anyone is connected to us
+      if (!TCPIsConnected(MySocket))
+      {
+         return;
+      }
+
+      // clear the receive buffer before receiving
+      memset(g_wifi_message_structure.rxBuf, 0, WIFI_MSG_BUF_SIZE);
+
+      // -------------------------------------------------------------
+      //                      Read Rx Data
+      // -------------------------------------------------------------
+      curr_rx_byte_count = TCPIsGetReady(MySocket);
+      if (0 != curr_rx_byte_count)
+      {
+         // there is data available, but is the data still incoming?
+         if (curr_rx_byte_count == prev_rx_byte_count)
+         {
+            // data has stopped coming, so read the data
+            bytes_read = TCPGetArray(MySocket, g_wifi_message_structure.rxBuf, WIFI_MSG_BUF_SIZE);
+         }
+      }
+      prev_rx_byte_count = curr_rx_byte_count;
+
+      // -------------------------------------------------------------
+      //                      Send Tx Data
+      // -------------------------------------------------------------
+      space_in_tx_buffer = TCPIsPutReady(MySocket);
+      if (space_in_tx_buffer >= WIFI_MSG_BUF_SIZE)
+      {
+         // space is available, so send out a message
+         memcpy(g_wifi_message_structure.txBuf, "hi there!", WIFI_MSG_BUF_SIZE);
+         TCPPutArray(MySocket, g_wifi_message_structure.txBuf, WIFI_MSG_BUF_SIZE);
+      }
+
+      // clear the transmit buffer after sending
+      memset(g_wifi_message_structure.txBuf, 0, WIFI_MSG_BUF_SIZE);
+
+      break;
+
+      // ----------------------- CLOSING -----------------------------
+   case SM_CLOSING:
+      // Close the socket connection.
+      TCPClose(MySocket);
+
+      TCPServerState = SM_HOME;
+      break;
+   }
+}
 
 
 // -----------------------------------------------------------------------------
@@ -124,11 +197,7 @@ int main(void)
    UINT8 ip_4 = 0;
    char message[20];
    
-   unsigned int real_pb_clock = 0;
-   //real_pb_clock = SYSTEMConfigPB(SYSTEM_CLOCK);
-
    gMillisecondsInOperation = 0;
-   g_second_timer = 0;
 
    // open the timer that will provide us with simple delay operations
    OpenTimer1(T1_OPEN_CONFIG, T1_TICK_PR);
@@ -152,14 +221,12 @@ int main(void)
    // JTAG, you'll still have a tiny window before JTAG goes away.
    // The PIC32 Starter Kit debuggers use JTAG and therefore must not
    // disable JTAG.
-   DelayMs(50);
-   //delayMS(50);
+   //DelayMs(50);
+   delayMS(50);
    // -------------------------------------------------------------------------
 
    setupI2C(I2C2);
    myI2CWriteToLine(I2C2, "yay I2C init good!", 1);
-   snprintf(message, CLS_LINE_SIZE, "%d", real_pb_clock);
-   myI2CWriteToLine(I2C2, message, 2);
 
    TickInit();
    myI2CWriteToLine(I2C2, "tick init done", 1);
@@ -178,82 +245,41 @@ int main(void)
    WF_Connect();
    myI2CWriteToLine(I2C2, "WF connect done", 1);
 
-   // now that the connection is established, open the timer to service the
-   // TCPIP stack
-//   OpenTimer2(T2_OPEN_CONFIG, T2_TICK_PR);
-//   ConfigIntTimer2(T2_INT_ON | T2_INT_PRIOR_2);
-
-   real_pb_clock = gMillisecondsInOperation;
    while (1)
    {
-      if (i < 100)
-      {
-         i += 1;
-         PORTToggleBits(IOPORT_B, BIT_10);
-         snprintf(message, CLS_LINE_SIZE, "%d, %d, %d", i, g_second_timer, gMillisecondsInOperation - real_pb_clock);
-         myI2CWriteToLine(I2C2, message, 1);
+      i += 1;
+      PORTToggleBits(IOPORT_B, BIT_10);
+      snprintf(message, CLS_LINE_SIZE, "%d, %d", i, gMillisecondsInOperation);
+      myI2CWriteToLine(I2C2, message, 1);
 
-         // extract the sections of the IP address and print them
-         // Note: Network byte order, including IP addresses, are "big endian",
-         // which means that their most significant bit is in the least
-         // significant bit position.
-         // Ex: IP address is 169.254.1.1.  Then "169" is the first byte, "254" is
-         // 8 bits after that, etc.
-         //     ip_4 = (AppConfig.MyIPAddr.Val & 0xFF000000) >> 24;
-         //     ip_3 = (AppConfig.MyIPAddr.Val & 0x00FF0000) >> 16;
-         //     ip_2 = (AppConfig.MyIPAddr.Val & 0x0000FF00) >> 8;
-         //     ip_1 = (AppConfig.MyIPAddr.Val & 0x000000FF) >> 0;
-         ip_4 = AppConfig.MyIPAddr.byte.MB;
-         ip_3 = AppConfig.MyIPAddr.byte.UB;
-         ip_2 = AppConfig.MyIPAddr.byte.HB;
-         ip_1 = AppConfig.MyIPAddr.byte.LB;
-         //snprintf(message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
-         snprintf(message, CLS_LINE_SIZE, "%d", real_pb_clock);
-         myI2CWriteToLine(I2C2, message, 2);
+      // extract the sections of the IP address and print them
+      // Note: Network byte order, including IP addresses, are "big endian",
+      // which means that their most significant bit is in the least
+      // significant bit position.
+      // Ex: IP address is 169.254.1.1.  Then "169" is the first byte, "254" is
+      // 8 bits after that, etc.
+      ip_4 = AppConfig.MyIPAddr.byte.MB;     // highest byte (??MB??), fourth number
+      ip_3 = AppConfig.MyIPAddr.byte.UB;     // middle high byte (??UB??), third number
+      ip_2 = AppConfig.MyIPAddr.byte.HB;     // middle low byte (??HB??), second number
+      ip_1 = AppConfig.MyIPAddr.byte.LB;     // lowest byte, first number
+      snprintf(message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
+      myI2CWriteToLine(I2C2, message, 2);
 
-         //DelayMs(1000);
-         delayMS(50);
+      // perform normal stack tasks including checking for incoming
+      // packets and calling appropriate handlers
+      StackTask();
 
-      }
-//      i += 1;
-//      PORTToggleBits(IOPORT_B, BIT_10);
-//      snprintf(message, CLS_LINE_SIZE, "%d, %d", g_second_timer, gMillisecondsInOperation);
-//      myI2CWriteToLine(I2C2, message, 1);
-//
-//      // extract the sections of the IP address and print them
-//      // Note: Network byte order, including IP addresses, are "big endian",
-//      // which means that their most significant bit is in the least
-//      // significant bit position.
-//      // Ex: IP address is 169.254.1.1.  Then "169" is the first byte, "254" is
-//      // 8 bits after that, etc.
-//      //     ip_4 = (AppConfig.MyIPAddr.Val & 0xFF000000) >> 24;
-//      //     ip_3 = (AppConfig.MyIPAddr.Val & 0x00FF0000) >> 16;
-//      //     ip_2 = (AppConfig.MyIPAddr.Val & 0x0000FF00) >> 8;
-//      //     ip_1 = (AppConfig.MyIPAddr.Val & 0x000000FF) >> 0;
-//      ip_4 = AppConfig.MyIPAddr.byte.MB;
-//      ip_3 = AppConfig.MyIPAddr.byte.UB;
-//      ip_2 = AppConfig.MyIPAddr.byte.HB;
-//      ip_1 = AppConfig.MyIPAddr.byte.LB;
-//      snprintf(message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
-//      myI2CWriteToLine(I2C2, message, 2);
-//
-//      //DelayMs(50);
-//      delayMS(50);
+      #if defined(WF_CS_TRIS)
+         #if !defined(MRF24WG)
+            if (gRFModuleVer1209orLater)
+         #endif
+         WiFiTask();
+      #endif
 
+      // This tasks invokes each of the core stack application tasks
+      StackApplications();
 
-//      // perform normal stack tasks including checking for incoming
-//      // packets and calling appropriate handlers
-//      StackTask();
-//
-//      #if defined(WF_CS_TRIS)
-//         #if !defined(MRF24WG)
-//            if (gRFModuleVer1209orLater)
-//         #endif
-//         WiFiTask();
-//      #endif
-//
-//      // This tasks invokes each of the core stack application tasks
-//      StackApplications();
+      delayMS(50);
 
       // -------------- Custom Code Here -----------------------------
    }
