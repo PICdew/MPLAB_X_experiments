@@ -66,6 +66,7 @@
 #define T1_OPEN_CONFIG        T1_ON | T1_SOURCE_INT | T1_PS_1_64
 
 unsigned int gMillisecondsInOperation;
+BOOL g_TCPIP_send_receive_can_begin;
 
 void TCPIP_send_receive(void);
 
@@ -80,7 +81,15 @@ void __ISR(_TIMER_1_VECTOR, IPL7AUTO) Timer1Handler(void)
 
    if (0 == gMillisecondsInOperation % 200)
    {
-      TCPIP_send_receive();
+      if (g_TCPIP_send_receive_can_begin)
+      {
+         PORTClearBits(IOPORT_B, BIT_11);
+         TCPIP_send_receive();
+      }
+      else
+      {
+         PORTToggleBits(IOPORT_B, BIT_11);
+      }
    }
 }
 
@@ -103,7 +112,6 @@ MSG_WIFI g_wifi_message_structure;
 void TCPIP_send_receive(void)
 {
    char message[20];
-   static int function_entry_count = 0;
 
    static TCP_SOCKET	MySocket;
    static enum _TCPServerState
@@ -119,9 +127,6 @@ void TCPIP_send_receive(void)
 
    WORD space_in_tx_buffer = 0;
 
-   function_entry_count += 1;
-   //snprintf(message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
-   //myI2CWriteToLine(I2C2, message, 2);
 
    switch (TCPServerState)
    {
@@ -132,20 +137,27 @@ void TCPIP_send_receive(void)
       if (MySocket == INVALID_SOCKET)
       {
          //myI2CWriteToLine(I2C2, "bad socket", 1);
-         return;
+
+         // bad
+      }
+      else
+      {
+         TCPServerState = SM_LISTENING;
       }
 
-      TCPServerState = SM_LISTENING;
       break;
 
    case SM_LISTENING:
-
-
       // See if anyone is connected to us
       if (!TCPIsConnected(MySocket))
       {
-         //myI2CWriteToLine(I2C2, "no one listening", 1);
-         return;
+         PORTClearBits(IOPORT_B, BIT_12);
+         PORTToggleBits(IOPORT_B, BIT_13);
+      }
+      else
+      {
+         PORTClearBits(IOPORT_B, BIT_13);
+         PORTToggleBits(IOPORT_B, BIT_12);
       }
 
       // clear the receive buffer before receiving
@@ -161,8 +173,8 @@ void TCPIP_send_receive(void)
          if (curr_rx_byte_count == prev_rx_byte_count)
          {
             // data has stopped coming, so read the data
-            //myI2CWriteToLine(I2C2, "reading data", 1);
-            bytes_read = TCPGetArray(MySocket, g_wifi_message_structure.rxBuf, WIFI_MSG_BUF_SIZE);
+//            bytes_read = TCPGetArray(MySocket, g_wifi_message_structure.rxBuf, WIFI_MSG_BUF_SIZE);
+            //g_wifi_message_structure.rxBuf[bytes_read - 1] = 0;
          }
       }
       prev_rx_byte_count = curr_rx_byte_count;
@@ -174,8 +186,7 @@ void TCPIP_send_receive(void)
       if (space_in_tx_buffer >= WIFI_MSG_BUF_SIZE)
       {
          // space is available, so send out a message
-         //myI2CWriteToLine(I2C2, "sending data", 1);
-         memcpy(g_wifi_message_structure.txBuf, "hi there!", WIFI_MSG_BUF_SIZE);
+         strncpy(g_wifi_message_structure.txBuf, "hi there!", WIFI_MSG_BUF_SIZE);
          TCPPutArray(MySocket, g_wifi_message_structure.txBuf, WIFI_MSG_BUF_SIZE);
       }
 
@@ -209,6 +220,7 @@ int main(void)
    char message[20];
    
    gMillisecondsInOperation = 0;
+   g_TCPIP_send_receive_can_begin = FALSE;
 
    // open the timer that will provide us with simple delay operations
    OpenTimer1(T1_OPEN_CONFIG, T1_TICK_PR);
@@ -260,6 +272,17 @@ int main(void)
    {
       PORTToggleBits(IOPORT_B, BIT_10);
 
+      if (strlen(g_wifi_message_structure.rxBuf) > 0)
+      {
+         myI2CWriteToLine(I2C2, "data Data DATA!", 1);
+         //snprintf(message, CLS_LINE_SIZE, "%s", g_wifi_message_structure.rxBuf);
+         //myI2CWriteToLine(I2C2, message, 1);
+      }
+      else
+      {
+         myI2CWriteToLine(I2C2, "no data; sad", 1);
+      }
+
       // extract the sections of the IP address and print them
       // Note: Network byte order, including IP addresses, are "big endian",
       // which means that their most significant bit is in the least
@@ -270,6 +293,12 @@ int main(void)
       ip_3 = AppConfig.MyIPAddr.byte.UB;     // middle high byte (??UB??), third number
       ip_2 = AppConfig.MyIPAddr.byte.HB;     // middle low byte (??HB??), second number
       ip_1 = AppConfig.MyIPAddr.byte.LB;     // lowest byte, first number
+      if (ip_1 != 169 && ip_2 != 254)
+      {
+         // we have an IP address that is other than local linking, so assume
+         // that we are connected to a router
+         g_TCPIP_send_receive_can_begin = TRUE;
+      }
       snprintf(message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
       myI2CWriteToLine(I2C2, message, 2);
 

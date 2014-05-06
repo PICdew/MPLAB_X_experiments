@@ -331,10 +331,10 @@ DWORD TickConvertToMilliseconds(DWORD dwTickValue)
   Returns:
   	None
   ***************************************************************************/
-//extern void __attribute((interrupt(ipl2), vector(_TIMER_5_VECTOR), nomips16)) vT5InterruptWrapper(void);
-//
-//void vT5InterruptHandler(void)
-extern void __attribute((interrupt(ipl2), vector(_TIMER_5_VECTOR), nomips16)) vT5InterruptWrapper(void)
+extern void __attribute((interrupt(ipl2), vector(_TIMER_5_VECTOR), nomips16)) vT5InterruptWrapper(void);
+
+//extern void __attribute((interrupt(ipl2), vector(_TIMER_5_VECTOR), nomips16)) vT5InterruptWrapper(void)
+void vT5InterruptHandler(void)
 {
 	// Increment internal high tick counter
 	dwInternalTicks++;
