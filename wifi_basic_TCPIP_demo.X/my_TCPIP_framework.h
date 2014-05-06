@@ -15,8 +15,8 @@ extern "C" {
    void TCPIP_stack_init(void);
    void TCPIP_keep_stack_alive(void);
 
-   int TCPIP_open_socket(unsigned int socket_num);
-   int TCPIP_close_socket(unsigned int socket_num);
+   int TCPIP_open_socket(unsigned int port_num);
+   int TCPIP_close_socket(void);
    void TCPIP_basic_send(unsigned int port_num, unsigned char *byte_buffer, unsigned int bytes_to_send);
    void TCPIP_basic_receive(unsigned int port_num, unsigned char *byte_buffer, unsigned int max_buffer_size);
 
