@@ -34,8 +34,12 @@
 #include <peripheral/system.h>
 #include <peripheral/timer.h>
 #include <peripheral/i2c.h>
-#include "i2c_stuff.h"
+
 #include <stdio.h>
+
+#include "i2c_stuff.h"
+#include "my_function_queue.h"
+
 
 // --------------------- TCPIP WiFi Stuff ---------------------------------------
 #define ROUTER_SSID                "Christ-2.4"
@@ -84,7 +88,8 @@ void __ISR(_TIMER_1_VECTOR, IPL7AUTO) Timer1Handler(void)
       if (g_TCPIP_send_receive_can_begin)
       {
          PORTClearBits(IOPORT_B, BIT_11);
-         TCPIP_send_receive();
+         add_function_to_queue(TCPIP_send_receive);
+         //TCPIP_send_receive();
       }
       else
       {
@@ -127,7 +132,6 @@ void TCPIP_send_receive(void)
 
    WORD space_in_tx_buffer = 0;
 
-
    switch (TCPServerState)
    {
       // ---------------------------- HOME -------------------------------
@@ -136,12 +140,11 @@ void TCPIP_send_receive(void)
       MySocket = TCPOpen(0, TCP_OPEN_SERVER, SERVER_PORT, TCP_PURPOSE_GENERIC_TCP_SERVER);
       if (MySocket == INVALID_SOCKET)
       {
-         //myI2CWriteToLine(I2C2, "bad socket", 1);
-
-         // bad
+         myI2CWriteToLine(I2C2, "bad socket", 1);
       }
       else
       {
+         myI2CWriteToLine(I2C2, "socket is good", 1);
          TCPServerState = SM_LISTENING;
       }
 
@@ -160,9 +163,6 @@ void TCPIP_send_receive(void)
          PORTToggleBits(IOPORT_B, BIT_12);
       }
 
-      // clear the receive buffer before receiving
-      memset(g_wifi_message_structure.rxBuf, 0, WIFI_MSG_BUF_SIZE);
-
       // -------------------------------------------------------------
       //                      Read Rx Data
       // -------------------------------------------------------------
@@ -172,8 +172,10 @@ void TCPIP_send_receive(void)
          // there is data available, but is the data still incoming?
          if (curr_rx_byte_count == prev_rx_byte_count)
          {
-            // data has stopped coming, so read the data
-//            bytes_read = TCPGetArray(MySocket, g_wifi_message_structure.rxBuf, WIFI_MSG_BUF_SIZE);
+            // data has stopped coming, so clear the receive buffer and read
+            // the data
+            memset(g_wifi_message_structure.rxBuf, 0, WIFI_MSG_BUF_SIZE);
+            bytes_read = TCPGetArray(MySocket, g_wifi_message_structure.rxBuf, WIFI_MSG_BUF_SIZE);
             //g_wifi_message_structure.rxBuf[bytes_read - 1] = 0;
          }
       }
@@ -185,13 +187,12 @@ void TCPIP_send_receive(void)
       space_in_tx_buffer = TCPIsPutReady(MySocket);
       if (space_in_tx_buffer >= WIFI_MSG_BUF_SIZE)
       {
-         // space is available, so send out a message
+         // space is available, so send out a message, then clear out the
+         // transmit buffer
          strncpy(g_wifi_message_structure.txBuf, "hi there!", WIFI_MSG_BUF_SIZE);
          TCPPutArray(MySocket, g_wifi_message_structure.txBuf, WIFI_MSG_BUF_SIZE);
+         memset(g_wifi_message_structure.txBuf, 0, WIFI_MSG_BUF_SIZE);
       }
-
-      // clear the transmit buffer after sending
-      memset(g_wifi_message_structure.txBuf, 0, WIFI_MSG_BUF_SIZE);
 
       break;
 
@@ -204,7 +205,6 @@ void TCPIP_send_receive(void)
       break;
    }
 }
-
 
 // -----------------------------------------------------------------------------
 //                    Main
@@ -221,6 +221,8 @@ int main(void)
    
    gMillisecondsInOperation = 0;
    g_TCPIP_send_receive_can_begin = FALSE;
+
+   function_queue_init();
 
    // open the timer that will provide us with simple delay operations
    OpenTimer1(T1_OPEN_CONFIG, T1_TICK_PR);
@@ -270,9 +272,29 @@ int main(void)
 
    while (1)
    {
+      // perform normal stack tasks including checking for incoming
+      // packets and calling appropriate handlers
+      StackTask();
+
+      #if defined(WF_CS_TRIS)
+         #if !defined(MRF24WG)
+            if (gRFModuleVer1209orLater)
+         #endif
+         WiFiTask();
+      #endif
+
+      // This tasks invokes each of the core stack application tasks
+      StackApplications();
+
+
+      // -------------- Custom Code Here -----------------------------
+
       PORTToggleBits(IOPORT_B, BIT_10);
 
-      if (strlen(g_wifi_message_structure.rxBuf) > 0)
+      execute_next_function_in_queue();
+
+      int i = strlen(g_wifi_message_structure.rxBuf);
+      if (i > 0)
       {
          myI2CWriteToLine(I2C2, "data Data DATA!", 1);
          //snprintf(message, CLS_LINE_SIZE, "%s", g_wifi_message_structure.rxBuf);
@@ -280,7 +302,7 @@ int main(void)
       }
       else
       {
-         myI2CWriteToLine(I2C2, "no data; sad", 1);
+         //myI2CWriteToLine(I2C2, "no data; sad", 1);
       }
 
       // extract the sections of the IP address and print them
@@ -302,23 +324,10 @@ int main(void)
       snprintf(message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
       myI2CWriteToLine(I2C2, message, 2);
 
-      // perform normal stack tasks including checking for incoming
-      // packets and calling appropriate handlers
-      StackTask();
-
-      #if defined(WF_CS_TRIS)
-         #if !defined(MRF24WG)
-            if (gRFModuleVer1209orLater)
-         #endif
-         WiFiTask();
-      #endif
-
-      // This tasks invokes each of the core stack application tasks
-      StackApplications();
 
       delayMS(50);
 
-      // -------------- Custom Code Here -----------------------------
+      
    }
 
    return 0;
