@@ -1,36 +1,3 @@
-// -----------------------------------------------------------------------------
-// Template Notes:
-//           -> Microchip TCPIP Tick uses Timer 5, do not use, see "Tick.c"
-//           -> prvTCPIP connects WiFi and maintains TCPIP stack
-//            this task must be executed frequently, currently it is
-//            being serviced every 50ms.
-//           -> prvLED toggles an LED every 100ms
-//           -> For configuring the TCPIP stack for different
-//            functionality see TCPIP.h, TCPIPConfig.h, HardwareProfile.h,
-//            WF_Config.h
-//           -> INTERRUPTS:
-//                The interrupts for Timer 5 and External Interrupt 3
-//                are completely setup in Tick.c and WF_Eint.c
-//                respectively. Therefore you do not need to setup
-//                the vectors, handlers, etc., as they are already
-//                taken care of.  If you wish to change them see
-//                the ".c" files.  The wrappers for INT3 and Timer 5
-//                are in "INT3_ISR.S", "T5_ISR.S" respectively.
-//           -> DIGILENT PORT:
-//                PmodWiFi should be plugged into Digilent port JB.
-//           -> HARDWARE JUMPER:
-//                You will need to set the jumper on
-//                "JP3" to the "INT3" position.  It is
-//                important to note that "INT3" is also a
-//                pin on Digilent port "JF", thus you must
-//                make sure that you have nothing else
-//                connected on the "JF" pin or else you
-//                may damage your hardware. The I2C1 bus uses this
-//                pin as well, thus make sure you have nothing
-//                connected to it (i.e. J2).
-//           -> HAVE FUN!!! :D
-// -----------------------------------------------------------------------------
-
 #include <peripheral/system.h>
 #include <peripheral/timer.h>
 #include <peripheral/ports.h>
@@ -163,7 +130,7 @@ int main(void)
    function_queue_init();
    myI2CWriteToLine(I2C2, "fnct queue good", 1);
 
-   TCPIP_and_wifi_stack_init();
+   TCPIP_and_wifi_stack_init("my_wifi_network_ssid", "my_wifi_network_pass_phrase");
    myI2CWriteToLine(I2C2, "TCPIP init good", 1);
    g_TCPIP_service_can_start = TRUE;
 

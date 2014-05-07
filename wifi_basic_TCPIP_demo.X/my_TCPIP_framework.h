@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-   void TCPIP_and_wifi_stack_init(void);
+   void TCPIP_and_wifi_stack_init(const char *wifi_SSID, const char *wifi_password);
    void TCPIP_keep_stack_alive(void);
    void TCPIP_get_IP_address(unsigned char *ip_first, unsigned char *ip_second, unsigned char *ip_third, unsigned char *ip_fourth);
 

@@ -3,13 +3,6 @@
 #include "my_TCPIP_framework.h"
 
 
-/*
-* This macro uniquely defines this file as the main entry point.
-* There should only be one such definition in the entire project,
-* and this file must define the AppConfig variable as described below.
-*/
-//#define THIS_IS_STACK_APPLICATION
-
 // Include all headers for any enabled TCPIP Stack functions
 // Note: Do not try including anything else. The Microchip TCPIP stack is a
 // heavily coupled chunk of header and source files, with preprocessor checks
@@ -304,7 +297,7 @@ static int my_init_app_config(const char *wifi_SSID, const char *wifi_pass_phras
 
 
 
-void TCPIP_and_wifi_stack_init(void)
+void TCPIP_and_wifi_stack_init(const char *wifi_SSID, const char *wifi_password)
 {
    int count = 0;
 
@@ -316,10 +309,8 @@ void TCPIP_and_wifi_stack_init(void)
    // open the timer that the wifi module will use for it's internal tick
    TickInit();
 
-   // initialize the basic application configuration
-
-   my_init_app_config("Christ-2.4", "Jesus is GOD!");
-   //my_init_app_config(g_my_router_ssid, g_my_router_password);
+   // initialize the TCPIP stack's application configuration
+   my_init_app_config(wifi_SSID, wifi_password);
 
 
    // Initialize the core stack layers
