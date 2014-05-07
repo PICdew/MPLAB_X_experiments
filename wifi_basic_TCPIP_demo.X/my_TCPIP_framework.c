@@ -8,27 +8,15 @@
 * There should only be one such definition in the entire project,
 * and this file must define the AppConfig variable as described below.
 */
-#define THIS_IS_STACK_APPLICATION
-
-//// for the definition of the APP_CONFIG structure, which the TCPIP stack uses
-//// throughout the stack's lifetime
-//#include "TCPIP Stack/includes/StackTsk.h"
-//
-#define BAUD_RATE       (19200)		// bps
-
+//#define THIS_IS_STACK_APPLICATION
 
 // Include all headers for any enabled TCPIP Stack functions
+// Note: Do not try including anything else. The Microchip TCPIP stack is a
+// heavily coupled chunk of header and source files, with preprocessor checks
+// and macros scattered and organized just so.  The only safe thing to include
+// (as far as I know) and the only one you should include because of how it is
+// organized, is TCPIP.h.
 #include "TCPIP Stack/includes/TCPIP.h"
-
-#if defined(STACK_USE_ZEROCONF_LINK_LOCAL)
-#include "TCPIP Stack/ZeroconfLinkLocal.h"
-#endif
-#if defined(STACK_USE_ZEROCONF_MDNS_SD)
-#include "TCPIP Stack/ZeroconfMulticastDNS.h"
-#endif
-
-
-
 
 
 // use these sockets to communicate over the network
@@ -53,31 +41,9 @@ static unsigned int g_socket_port_numbers[MAX_SOCKETS];
 
 
 
-
-
-
-
-
-
-
-#if defined(EEPROM_CS_TRIS) || defined(SPIFLASH_CS_TRIS)
-void SaveAppConfig(const APP_CONFIG *AppConfig);
-#else
-#define SaveAppConfig(a)
-#endif
-
-// Define a header structure for validating the AppConfig data structure in EEPROM/Flash
-typedef struct
-{
-   unsigned short wConfigurationLength;	// Number of bytes saved in EEPROM/Flash (sizeof(APP_CONFIG))
-   unsigned short wOriginalChecksum;		// Checksum of the original AppConfig defaults as loaded from ROM (to detect when to wipe the EEPROM/Flash record of AppConfig due to a stack change, such as when switching from Ethernet to Wi-Fi)
-   unsigned short wCurrentChecksum;		// Checksum of the current EEPROM/Flash data.  This protects against using corrupt values if power failure occurs while writing them and helps detect coding errors in which some other task writes to the EEPROM in the AppConfig area.
-} NVM_VALIDATION_STRUCT;
-
-
 // Used for Wi-Fi assertions
 // Note: Just keep this around for now
-#define WF_MODULE_NUMBER   WF_MODULE_MAIN_DEMO
+//#define WF_MODULE_NUMBER   WF_MODULE_MAIN_DEMO
 
 // create an APP_CONFIG structure for the TCPIP stack to keep track of various
 // network detail
@@ -90,30 +56,20 @@ typedef struct
 APP_CONFIG AppConfig;
 
 
-// Private helper functions.
-// These may or may not be present in all applications.
-#if defined(WF_CS_TRIS)
-void WF_Connect(void);
-#if !defined(MRF24WG)
-extern BOOL gRFModuleVer1209orLater;
-#endif
 
 //??trying defining this yourself lateR??
 #if defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST)
 tPassphraseReady g_WpsPassphrase;
 #endif    /* defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST) */
-#endif
 
 
-#if defined(WF_CS_TRIS)
-// Global variables
-UINT8 ConnectionProfileID;
-#endif
 
-#if defined(WF_CS_TRIS)
+// create a handle for a connection profile
+//static UINT8 ConnectionProfileID;
+
 
 /*****************************************************************************
-* FUNCTION: WF_Connect
+* FUNCTION: my_WF_connect
 *
 * RETURNS:  None
 *
@@ -122,8 +78,9 @@ UINT8 ConnectionProfileID;
 *  NOTES:   Connects to an 802.11 network.  Customize this function as needed
 *           for your application.
 *****************************************************************************/
-void WF_Connect(void)
+static void my_WF_connect(void)
 {
+   UINT8 ConnectionProfileID;
    UINT8 channelList[] = MY_DEFAULT_CHANNEL_LIST;
 
    /* create a Connection Profile */
@@ -138,7 +95,6 @@ void WF_Connect(void)
    WF_CPSetNetworkType(ConnectionProfileID, MY_DEFAULT_NETWORK_TYPE);
 
    WF_CASetScanType(MY_DEFAULT_SCAN_TYPE);
-
 
    WF_CASetChannelList(channelList, sizeof(channelList));
 
@@ -155,95 +111,38 @@ void WF_Connect(void)
 
    WF_CASetBeaconTimeout(MY_DEFAULT_BEACON_TIMEOUT);
 
-#if !defined(MRF24WG)
-   if (gRFModuleVer1209orLater)
-#else
-   {
-      // If WEP security is used, set WEP Key Type.  The default WEP Key Type is Shared Key.
-      if (AppConfig.SecurityMode == WF_SECURITY_WEP_40 || AppConfig.SecurityMode == WF_SECURITY_WEP_104)
-      {
-         WF_CPSetWepKeyType(ConnectionProfileID, MY_DEFAULT_WIFI_SECURITY_WEP_KEYTYPE);
-      }
-   }
-#endif
+   // we are using WPA auto (see "my init app config" function for more
+   // explanation on security options), so convert the specified pass phrase to
+   // a WPA or WPA2 (whichever is more secure AND that the access point
+   // supports) hex key, then change the security mode from "with pass phrase"
+   // to "with pass key"
+   // Note: These hex keys are always 32 bytes long.
+   WF_ConvPassphrase2Key(
+           AppConfig.SecurityKeyLength,
+           AppConfig.SecurityKey,
+           AppConfig.SsidLength,
+           AppConfig.MySSID);
+   AppConfig.SecurityMode--;
+   AppConfig.SecurityKeyLength = 32;
 
-#if defined(MRF24WG)
-   // Error check items specific to WPS Push Button mode
-#if (MY_DEFAULT_WIFI_SECURITY_MODE==WF_SECURITY_WPS_PUSH_BUTTON)
-#if !defined(WF_P2P)
-   WF_ASSERT(strlen(AppConfig.MySSID) == 0);  // SSID must be empty when using WPS
-   WF_ASSERT(sizeof(channelList) == 11);        // must scan all channels for WPS
-#endif
-
-#if (MY_DEFAULT_NETWORK_TYPE == WF_P2P)
-   WF_ASSERT(strcmp((char *)AppConfig.MySSID, "DIRECT-") == 0);
-   WF_ASSERT(sizeof(channelList) == 3);
-   WF_ASSERT(channelList[0] == 1);
-   WF_ASSERT(channelList[1] == 6);
-   WF_ASSERT(channelList[2] == 11);
-#endif
-#endif
-
-#endif /* MRF24WG */
-
-#if defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST)
-   if (AppConfig.SecurityMode == WF_SECURITY_WPA_WITH_PASS_PHRASE
-      || AppConfig.SecurityMode == WF_SECURITY_WPA2_WITH_PASS_PHRASE
-      || AppConfig.SecurityMode == WF_SECURITY_WPA_AUTO_WITH_PASS_PHRASE) {
-      WF_ConvPassphrase2Key(AppConfig.SecurityKeyLength, AppConfig.SecurityKey,
-         AppConfig.SsidLength, AppConfig.MySSID);
-      AppConfig.SecurityMode--;
-      AppConfig.SecurityKeyLength = 32;
-   }
-#if defined (MRF24WG)
-   else if (AppConfig.SecurityMode == WF_SECURITY_WPS_PUSH_BUTTON
-      || AppConfig.SecurityMode == WF_SECURITY_WPS_PIN) {
-      WF_YieldPassphrase2Host();
-   }
-#endif    /* defined (MRF24WG) */
-#endif    /* defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST) */
-
+   // set the TCPIP connection profile to use this new security setting
    WF_CPSetSecurity(ConnectionProfileID,
       AppConfig.SecurityMode,
       AppConfig.WepKeyIndex,   /* only used if WEP enabled */
       AppConfig.SecurityKey,
       AppConfig.SecurityKeyLength);
 
-#if MY_DEFAULT_PS_POLL == WF_ENABLED
-   WF_PsPollEnable(TRUE);
-#if !defined(MRF24WG)
-   if (gRFModuleVer1209orLater)
-      WFEnableDeferredPowerSave();
-#endif    /* !defined(MRF24WG) */
-#else     /* MY_DEFAULT_PS_POLL != WF_ENABLED */
+   // disable power saving
    WF_PsPollDisable();
-#endif    /* MY_DEFAULT_PS_POLL == WF_ENABLED */
 
-#ifdef WF_AGGRESSIVE_PS
-#if !defined(MRF24WG)
-   if (gRFModuleVer1209orLater)
-      WFEnableAggressivePowerSave();
-#endif
-#endif
-
-#if defined(STACK_USE_UART)
-   WF_OutputConnectionInfo(&AppConfig);
-#endif
-
-#if defined(DISABLE_MODULE_FW_CONNECT_MANAGER_IN_INFRASTRUCTURE)
-   WF_DisableModuleConnectionManager();
-#endif
-
-#if defined(MRF24WG)
-   WFEnableDebugPrint(ENABLE_WPS_PRINTS | ENABLE_P2P_PRINTS);
-#endif
+   // direct the wifi connection manager to start scanning for and connect to
+   // a network that matches the TCPIP connection profile.
    WF_CMConnect(ConnectionProfileID);
 }
-#endif /* WF_CS_TRIS */
 
 
 /*********************************************************************
-* Function:        void InitAppConfig(void)
+* Function:        void my_init_app_config(void)
 *
 * PreCondition:    MPFSInit() is already called.
 *
@@ -257,76 +156,141 @@ void WF_Connect(void)
 *
 * Note:            None
 ********************************************************************/
-// MAC Address Serialization using a MPLAB PM3 Programmer and
-// Serialized Quick Turn Programming (SQTP).
-// The advantage of using SQTP for programming the MAC Address is it
-// allows you to auto-increment the MAC address without recompiling
-// the code for each unit.  To use SQTP, the MAC address must be fixed
-// at a specific location in program memory.  Uncomment these two pragmas
-// that locate the MAC address at 0x1FFF0.  Syntax below is for MPLAB C
-// Compiler for PIC18 MCUs. Syntax will vary for other compilers.
-//#pragma romdata MACROM=0x1FFF0
-static ROM BYTE SerializedMACAddress[6] = { MY_DEFAULT_MAC_BYTE1, MY_DEFAULT_MAC_BYTE2, MY_DEFAULT_MAC_BYTE3, MY_DEFAULT_MAC_BYTE4, MY_DEFAULT_MAC_BYTE5, MY_DEFAULT_MAC_BYTE6 };
-//#pragma romdata
-
-static int InitAppConfig(const char *wifi_SSID, const char *wifi_password)
+static int my_init_app_config(const char *wifi_SSID, const char *wifi_pass_phrase)
 {
    int this_ret_val = 0;
 
+   // the mac address cannot fit into a single value, like an unsigned long, so
+   // it is jammed into a byte array
+   // Note: In the original code in MHCP_TCPIP.h, the array type was a global
+   // static (that is, global to this file) ROM BYTE array, but those were just
+   // typedefs of "const" and "unsigned char", and it was a static global to
+   // take advantage of a Microchip programming feature called
+   // "Serialized Quick Turn Programming" (SQTP).  We are not using SQTP, so it
+   // didn't need to be static, and therefore I changed it to being local to
+   // this setup function.  I also removed the ROM (const) from the declaration
+   // because it is only alive for the duration of this function.
+   BYTE SerializedMACAddress[6] =
+   {
+      MY_DEFAULT_MAC_BYTE1,
+      MY_DEFAULT_MAC_BYTE2,
+      MY_DEFAULT_MAC_BYTE3,
+      MY_DEFAULT_MAC_BYTE4,
+      MY_DEFAULT_MAC_BYTE5,
+      MY_DEFAULT_MAC_BYTE6
+   };
+   
    // start by checking for input shenanigans
    if (0 == wifi_SSID)
    {
       this_ret_val = -1;
    }
-   else if (0 == wifi_password)
+   else if (0 == wifi_pass_phrase)
    {
-      this_ret_val = -1;
+      this_ret_val = -2;
    }
 
-   // Start out zeroing all AppConfig bytes to ensure all fields are
-   // deterministic for checksum generation
-   memset((void*)&AppConfig, 0x00, sizeof(AppConfig));
+   if (0 == this_ret_val)
+   {
+      // inputs are ok, but now check if they are too big for their destination
+      // containers
+      if (strlen(wifi_SSID) >= sizeof(AppConfig.MySSID))
+      {
+         // SSID too big
+         this_ret_val = -3;
+      }
+      else if (strlen(wifi_pass_phrase) >= sizeof(AppConfig.SecurityKey))
+      {
+         // pass phrase too big
+         this_ret_val = -4;
+      }
+   }
 
-   AppConfig.Flags.bIsDHCPEnabled = TRUE;
-   AppConfig.Flags.bInConfigMode = TRUE;
-   memcpypgm2ram((void*)&AppConfig.MyMACAddr, (ROM void*)SerializedMACAddress, sizeof(AppConfig.MyMACAddr));
+   if (0 == this_ret_val)
+   {
+      // everything seems to be in order, so begin configuring the TCPIP
+      // application structure by zeroing it out
+      memset((void*)&AppConfig, 0x00, sizeof(AppConfig));
 
-   AppConfig.MyIPAddr.Val = MY_DEFAULT_IP_ADDR_BYTE1 | MY_DEFAULT_IP_ADDR_BYTE2 << 8ul | MY_DEFAULT_IP_ADDR_BYTE3 << 16ul | MY_DEFAULT_IP_ADDR_BYTE4 << 24ul;
-   AppConfig.DefaultIPAddr.Val = AppConfig.MyIPAddr.Val;
-   AppConfig.MyMask.Val = MY_DEFAULT_MASK_BYTE1 | MY_DEFAULT_MASK_BYTE2 << 8ul | MY_DEFAULT_MASK_BYTE3 << 16ul | MY_DEFAULT_MASK_BYTE4 << 24ul;
-   AppConfig.DefaultMask.Val = AppConfig.MyMask.Val;
-   AppConfig.MyGateway.Val = MY_DEFAULT_GATE_BYTE1 | MY_DEFAULT_GATE_BYTE2 << 8ul | MY_DEFAULT_GATE_BYTE3 << 16ul | MY_DEFAULT_GATE_BYTE4 << 24ul;
-   AppConfig.PrimaryDNSServer.Val = MY_DEFAULT_PRIMARY_DNS_BYTE1 | MY_DEFAULT_PRIMARY_DNS_BYTE2 << 8ul | MY_DEFAULT_PRIMARY_DNS_BYTE3 << 16ul | MY_DEFAULT_PRIMARY_DNS_BYTE4 << 24ul;
-   AppConfig.SecondaryDNSServer.Val = MY_DEFAULT_SECONDARY_DNS_BYTE1 | MY_DEFAULT_SECONDARY_DNS_BYTE2 << 8ul | MY_DEFAULT_SECONDARY_DNS_BYTE3 << 16ul | MY_DEFAULT_SECONDARY_DNS_BYTE4 << 24ul;
+      // set it to use DHCP
+      AppConfig.Flags.bIsDHCPEnabled = TRUE;
 
-   // Load the default NetBIOS Host Name
-   memcpypgm2ram(AppConfig.NetBIOSName, (ROM void*)MY_DEFAULT_HOST_NAME, 16);
-   FormatNetBIOSName(AppConfig.NetBIOSName);
+      // put it in config mode
+      // Note: I looked around the TCPIP stack code and Microchip's TCPIP stack
+      // PDF a bit, and I can't find an explanation for what this means.  It
+      // was set to TRUE in MHCP_TCPIP.h, from whence this code was derived, so
+      // I'll leave it true.
+      AppConfig.Flags.bInConfigMode = TRUE;
+
+      // copy in the MAC address
+      // Note: This comes from the TCPIP stack's "includes" directory,
+      // TCPIPConfig.h, starting at line 153.
+      memcpy((void*)&AppConfig.MyMACAddr, (ROM void*)SerializedMACAddress, sizeof(AppConfig.MyMACAddr));
+
+      // copy in the default IP address as both the current and the default
+      // Note: This comes from the TCPIP stack's "includes" directory,
+      // TCPIPConfig.h, starting at line 160.
+      AppConfig.MyIPAddr.Val = MY_DEFAULT_IP_ADDR_BYTE1 | MY_DEFAULT_IP_ADDR_BYTE2 << 8ul | MY_DEFAULT_IP_ADDR_BYTE3 << 16ul | MY_DEFAULT_IP_ADDR_BYTE4 << 24ul;
+      AppConfig.DefaultIPAddr.Val = AppConfig.MyIPAddr.Val;
+
+      // copy in the default subnet mask as both the current and the default
+      // Note: This comes from the TCPIP stack's "includes" directory,
+      // TCPIPConfig.h, starting at line 165.
+      AppConfig.MyMask.Val = MY_DEFAULT_MASK_BYTE1 | MY_DEFAULT_MASK_BYTE2 << 8ul | MY_DEFAULT_MASK_BYTE3 << 16ul | MY_DEFAULT_MASK_BYTE4 << 24ul;
+      AppConfig.DefaultMask.Val = AppConfig.MyMask.Val;
+
+      // copy in the default gateway
+      // Note: This comes from the TCPIP stack's "includes" directory,
+      // TCPIPConfig.h, starting at line 170.
+      // Note: Are we starting to see a pattern?
+      AppConfig.MyGateway.Val = MY_DEFAULT_GATE_BYTE1 | MY_DEFAULT_GATE_BYTE2 << 8ul | MY_DEFAULT_GATE_BYTE3 << 16ul | MY_DEFAULT_GATE_BYTE4 << 24ul;
+
+      // copy in the default primary and secondary DNS
+      // Note: This comes from the TCPIP stack's "includes" directory,
+      // TCPIPConfig.h, starting at line 175.
+      // Note: Whoa!  Deja vu...
+      AppConfig.PrimaryDNSServer.Val = MY_DEFAULT_PRIMARY_DNS_BYTE1 | MY_DEFAULT_PRIMARY_DNS_BYTE2 << 8ul | MY_DEFAULT_PRIMARY_DNS_BYTE3 << 16ul | MY_DEFAULT_PRIMARY_DNS_BYTE4 << 24ul;
+      AppConfig.SecondaryDNSServer.Val = MY_DEFAULT_SECONDARY_DNS_BYTE1 | MY_DEFAULT_SECONDARY_DNS_BYTE2 << 8ul | MY_DEFAULT_SECONDARY_DNS_BYTE3 << 16ul | MY_DEFAULT_SECONDARY_DNS_BYTE4 << 24ul;
+
+      // set and format the default NetBIOS Host Name
+      // Note: This comes from the TCPIP stack's "includes" directory,
+      // TCPIPConfig.h, starting at line 175.
+      // Note: I would SO not have guess that the configuration as in
+      // TCPIPConfig.h!
+      // Note: The formatting is some string mangling to restrict the specified
+      // host name to the NetBIOS standard of exactly 16 characters, with 15
+      // being characters and the last being a null terminator.
+      memcpy(AppConfig.NetBIOSName, (ROM void*)MY_DEFAULT_HOST_NAME, 16);
+      FormatNetBIOSName(AppConfig.NetBIOSName);
 
 
-   // Note: In MHCP_TCPIP.h, from whence this code was derived, there is a
-   // #define check here for WF_CS_TRIS, which is a check to see if there is
-   // a clock signal (CS) pin defined.  This is defined in the TCPIP stack's
-   // "includes" directory, in "HardwareProfile.h", line 139.  Don't touch
-   // that #define because it is used in a number of different files, and
-   // since it is so widely defined, I am going to simply go without the
-   // check here.
+      // Note: In MHCP_TCPIP.h, from whence this code was derived, there is a
+      // #define check here for WF_CS_TRIS, which is a check to see if there is
+      // a clock signal (CS) pin defined.  This is defined in the TCPIP stack's
+      // "includes" directory, in "HardwareProfile.h", line 139.  Don't touch
+      // that #define because it is used in a number of different files, and
+      // since it is so widely defined, I am going to simply go without the
+      // check here.
 
-   // load the SSID name into the wifi
-   WF_ASSERT(strlen(wifi_SSID) <= sizeof(AppConfig.MySSID));
-   memcpy(AppConfig.MySSID, (ROM void*)wifi_SSID, strlen(wifi_SSID));
-   AppConfig.SsidLength = strlen(wifi_SSID);
+      // load the SSID name into the wifi
+      memcpy(AppConfig.MySSID, (ROM void*)wifi_SSID, strlen(wifi_SSID));
+      AppConfig.SsidLength = strlen(wifi_SSID);
 
-   // use WPA auto security
-   // Note: There is an explanation of the different types of security
-   // available in the TCPIP stack's "includes" directory, in WFApi.h,
-   // starting at line 513.  The explanation for
-   // "WPA auto with pass phrase" states that it will use WPA or WPA2.
-   // It will automatically choose the higher of the two depending on
-   // what the wireless access point (AP) supports.
-   AppConfig.SecurityMode = WF_SECURITY_WPA_AUTO_WITH_PASS_PHRASE;
-   memcpy(AppConfig.SecurityKey, (ROM void*)wifi_password, strlen(wifi_password));
-   AppConfig.SecurityKeyLength = strlen(wifi_password);
+      // use WPA auto security
+      // Note: There is an explanation of the different types of security
+      // available in the TCPIP stack's "includes" directory, in WFApi.h,
+      // starting at line 513.  The explanation for
+      // "WPA auto with pass phrase" states that it will use WPA or WPA2.
+      // It will automatically choose the higher of the two depending on
+      // what the wireless access point (AP) supports.
+      // Note: If you want to use another security mode, check MHCP_TCPIP.h to
+      // see how they handled it.
+      AppConfig.SecurityMode = WF_SECURITY_WPA_AUTO_WITH_PASS_PHRASE;
+      memcpy(AppConfig.SecurityKey, (ROM void*)wifi_pass_phrase, strlen(wifi_pass_phrase));
+      AppConfig.SecurityKeyLength = strlen(wifi_pass_phrase);
+   }
+
+   return this_ret_val;
 }
 
 
@@ -354,18 +318,21 @@ void TCPIP_and_wifi_stack_init(void)
 
    // initialize the basic application configuration
 
-   InitAppConfig("Christ-2.4", "Jesus is GOD!");
-   //InitAppConfig(g_my_router_ssid, g_my_router_password);
+   my_init_app_config("Christ-2.4", "Jesus is GOD!");
+   //my_init_app_config(g_my_router_ssid, g_my_router_password);
 
 
    // Initialize the core stack layers
    StackInit();
 
-   // we
+   // flag the passphrase as invalid so that it will need to be resubmitted
+   // ??correct? why??
 #if defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST)
    g_WpsPassphrase.valid = FALSE;
 #endif   /* defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST) */
-   WF_Connect();
+
+   // keep the wifi connection alive
+   my_WF_connect();
 }
 
 void TCPIP_keep_stack_alive(void)

@@ -277,7 +277,17 @@ int main(void)
          // the typed text and which included that return key, and display it
          // to the CLS
          rx_buffer[byte_count - 2] = 0;
-         snprintf(cls_message, MESSAGE_BUFFER_SIZE_BYTES, "%s", rx_buffer);
+         snprintf(cls_message, CLS_LINE_SIZE, "%s", rx_buffer);
+         
+         // null terminate the end of the string
+         if (byte_count < CLS_LINE_SIZE)
+         {
+            cls_message[byte_count - 1] = 0;
+         }
+         else
+         {
+            cls_message[CLS_LINE_SIZE - 1] = 0;
+         }
          myI2CWriteToLine(I2C2, cls_message, 2);
 
          // now spit the message back out, formatted to appear visually
