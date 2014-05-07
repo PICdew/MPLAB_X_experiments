@@ -35,13 +35,15 @@
 // Note: For each socket, two pieces of information will be tracked:
 // - A socket handle
 // - The port used in that socket (this is just book keeping; I don't use it)
-// - An enum to track whether we opened or closed the socket
+// Note: For simplicity, each socket handle will correspond to one, and only
+// one, port.  Port numbers are easier for the user to track because they are
+// just integers.
 #define MAX_SOCKETS 5
 static TCP_SOCKET	g_socket_handles[MAX_SOCKETS];
 static unsigned int g_socket_port_numbers[MAX_SOCKETS];
 
 
-void TCPIP_stack_init(void)
+void TCPIP_and_wifi_stack_init(void)
 {
    int count = 0;
 
@@ -50,22 +52,19 @@ void TCPIP_stack_init(void)
       g_socket_port_numbers[count] = 0;
    }
 
+   // open the timer that the wifi module will use for it's internal tick
    TickInit();
-   myI2CWriteToLine(I2C2, "tick init done", 1);
 
    // initialize the basic application configuration
    InitAppConfig();
-   myI2CWriteToLine(I2C2, "app init done", 1);
 
    // Initialize the core stack layers
    StackInit();
-   myI2CWriteToLine(I2C2, "stack init done", 1);
 
 #if defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST)
    g_WpsPassphrase.valid = FALSE;
 #endif   /* defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST) */
    WF_Connect();
-   myI2CWriteToLine(I2C2, "WF connect done", 1);
 }
 
 void TCPIP_keep_stack_alive(void)
@@ -83,6 +82,21 @@ void TCPIP_keep_stack_alive(void)
 
    // this tasks invokes each of the core stack application tasks
    StackApplications();
+}
+
+void TCPIP_get_IP_address(unsigned char *ip_first, unsigned char *ip_second, unsigned char *ip_third, unsigned char *ip_fourth)
+{
+   // extract the sections of the IP address from MCHP_TCPIP.h's AppConfig
+   // structure
+   // Note: Network byte order, including IP addresses, are "big endian",
+   // which means that their most significant bit is in the least
+   // significant bit position.
+   // Ex: IP address is 169.254.1.1.  Then "169" is the first byte, "254" is
+   // 8 bits "higher", etc.
+   ip_fourth = AppConfig.MyIPAddr.byte.MB;     // highest byte (??MB??), fourth number
+   ip_third = AppConfig.MyIPAddr.byte.UB;     // middle high byte (??UB??), third number
+   ip_second = AppConfig.MyIPAddr.byte.HB;     // middle low byte (??HB??), second number
+   ip_first = AppConfig.MyIPAddr.byte.LB;     // lowest byte, first number
 }
 
 static int get_next_available_socket_index(void)
@@ -109,27 +123,48 @@ static int get_next_available_socket_index(void)
    return this_ret_val;
 }
 
-int TCPIP_open_socket(unsigned int port_num)
+static int find_index_of_port_number(unsigned int port_num)
 {
    int this_ret_val = 0;
    int count = 0;
-   int socket_index_to_use;
 
-   // first check if this port is already in use
    for (count = 0; count < MAX_SOCKETS; count += 1)
    {
       if (port_num == g_socket_port_numbers[count])
       {
-         // port is already in use, so abort
-         this_ret_val = -1;
+         // found it
+         this_ret_val = count;
+         break;
       }
+   }
+   
+   if (MAX_SOCKETS == count)
+   {
+      // didn't find it
+      this_ret_val = -1;
+   }
+   
+   return this_ret_val;
+}
+
+int TCPIP_open_socket(unsigned int port_num)
+{
+   int this_ret_val = 0;
+   int socket_index;
+
+   // first check if this port is already in use
+   socket_index = find_index_of_port_number(port_num);
+   if (socket_index >= 0)
+   {
+      // already in use; abort
+      this_ret_val = -1;
    }
 
    if (0 == this_ret_val)
    {
       // port number was not in use, so now get the next available socket index
-      socket_index_to_use = get_next_available_socket_index();
-      if (socket_index_to_use < 0)
+      socket_index = get_next_available_socket_index();
+      if (socket_index < 0)
       {
          // no index available
          this_ret_val = -2;
@@ -139,8 +174,8 @@ int TCPIP_open_socket(unsigned int port_num)
    if (0 == this_ret_val)
    {
       // this socket handle must be available, so try to open a handle to it
-      g_socket_handles[socket_index_to_use] = TCPOpen(0, TCP_OPEN_SERVER, port_num, TCP_PURPOSE_GENERIC_TCP_SERVER);
-      if (INVALID_SOCKET = g_socket_handles[socket_index_to_use])
+      g_socket_handles[socket_index] = TCPOpen(0, TCP_OPEN_SERVER, port_num, TCP_PURPOSE_GENERIC_TCP_SERVER);
+      if (INVALID_SOCKET = g_socket_handles[socket_index])
       {
          // bad
          this_ret_val = -3;
@@ -148,41 +183,216 @@ int TCPIP_open_socket(unsigned int port_num)
       else
       {
          // socket opened ok, so do some book keeping
-         g_socket_port_numbers[socket_index_to_use] = port_num;
+         g_socket_port_numbers[socket_index] = port_num;
       }
    }
 
    return this_ret_val;
 }
 
-int TCPIP_close_socket(unsigned int socket_num)
+int TCPIP_close_socket(unsigned int port_num)
 {
    int this_ret_val = 0;
+   int socket_index = 0;
 
-   if (socket_num >= MAX_SOCKETS)
+   // find the index of the port in use
+   socket_index = find_index_of_port_number(port_num);
+   if (socket_index < 0)
    {
+      // couldn't find this port number, so we must not be using it
       this_ret_val = -1;
    }
 
    if (0 == this_ret_val)
    {
-      // socket number was okay, so close it if it is open (else ignore it)
-      if (SOCKET_CLOSED == g_TCP_socket_states[socket_num])
+      // close the socket, and reset the port number
+      // Note: We opened as a server, and only TCPClose(...) can be used to
+      // destroy server sockets.  TCPDisconnect(...) only destroys socket
+      // clients.
+      TCPClose(g_socket_handles[socket_index]);
+      g_socket_port_numbers[socket_index] = 0;
+   }
+
+   return this_ret_val;
+}
+
+int TCPIP_bytes_in_TX_FIFO(unsigned int port_num)
+{
+   int this_ret_val = 0; 
+   int socket_index = 0;
+   
+   socket_index = find_index_of_port_number(port_num);
+   if (socket_index < 0)
+   {
+      // couldn't find this port number, so we must not be using it
+      this_ret_val = -1;
+   }
+   
+   if (0 == this_ret_val)
+   {
+      // check the space in the TX buffer
+      // Note: The function "TCP is put ready" only uses the socket handle to 
+      // perform some kind of synchronization before checking the number of 
+      // bytes available in the TX FIFO.  The number of bytes available is 
+      // actually independent of the socket in use, despite what the argument 
+      // to the function suggests.  I think that the socket handle argument is
+      // only there to ensure that a socket-port combo is active.
+      this_ret_val = TCPIsPutReady(g_socket_handles[socket_index]);
+   }
+   
+   return this_ret_val;
+}
+
+int TCPIP_bytes_in_RX_FIFO(unsigned int port_num)
+{
+   int this_ret_val = 0; 
+   int socket_index = 0;
+   
+   socket_index = find_index_of_port_number(port_num);
+   if (socket_index < 0)
+   {
+      // couldn't find this port number, so we must not be using it
+      this_ret_val = -1;
+   }
+   
+   if (0 == this_ret_val)
+   {
+      // check the space in the TX buffer
+      // Note: See note in "TCPIP bytes in TX FIFO".
+      this_ret_val = TCPIsGetReady(g_socket_handles[socket_index]);
+   }
+   
+   return this_ret_val;
+}
+
+int TCPIP_basic_send(unsigned int port_num, unsigned char *byte_buffer, unsigned int bytes_to_send)
+{
+   int this_ret_val = 0;
+   int socket_index = 0;
+   WORD space_in_tx_buffer = 0;
+   WORD bytes_sent;
+
+   if (0 == byte_buffer)
+   {
+      // bad pointer
+      this_ret_val = -1;
+   }
+
+   if (0 == this_ret_val)
+   {
+      socket_index = find_index_of_port_number(port_num);
+      if (socket_index < 0)
       {
-         // already closed, so do nothing
+         // couldn't find this port number, so we must not be using it
+         this_ret_val = -2;
+      }
+   }
+
+   if (0 == this_ret_val)
+   {
+      if (!TCPIsConnected(g_socket_handles[socket_index]))
+      {
+         // there are no sockets communicating with this one, so do nothing
+         this_ret_val = -3;
+      }
+   }
+
+   if (0 == this_ret_val)
+   {
+      space_in_tx_buffer = TCPIsPutReady(g_socket_handles[socket_index]);
+      if (bytes_to_send > space_in_tx_buffer)
+      {
+         // too much data to send at once, so do nothing
+         // Note: If you're feeling clever, modify this function so that it
+         // sends the data in multiple chunks.
+         this_ret_val = -4;
+      }
+   }
+
+   if (0 == this_ret_val)
+   {
+      bytes_sent = TCPPutArray(g_socket_handles[socket_index], byte_buffer, bytes_to_send);
+      if (bytes_sent < bytes_to_send)
+      {
+         // some kind of problem; bad
+         // Note: The documentation for TCPPutArray(...) says that, if the
+         // number of bytes sent is less than the number that was requested,
+         // then the TX buffer became full or the socket was not connected.
+         // Hopefully, with the checks in this function, those should be caught
+         // before reaching the call to TCPPutArray(...).
+         this_ret_val = -5;
       }
       else
       {
-         // destroy the socket handle and do some book keeping
-         TCPClose(g_socket_handles[socket_num]);
-         g_socket_port_numbers[socket_num] = 0;
-         g_TCP_socket_states[socket_num] = SOCKET_CLOSED;
+         // all went well
+         this_ret_val = bytes_sent;
       }
    }
 
    return this_ret_val;
 }
 
-void TCPIP_basic_send(unsigned int port_num, unsigned char *byte_buffer, unsigned int bytes_to_send);
-void TCPIP_basic_receive(unsigned int port_num, unsigned char *byte_buffer, unsigned int max_buffer_size);
+int TCPIP_basic_receive(unsigned int port_num, unsigned char *byte_buffer, unsigned int max_buffer_size)
+{
+   int this_ret_val = 0;
+   int socket_index = 0;
+   WORD bytes_in_rx_buffer = 0;
+   WORD bytes_read;
+
+   if (0 == byte_buffer)
+   {
+      // bad pointer
+      this_ret_val = -1;
+   }
+
+   if (0 == this_ret_val)
+   {
+      socket_index = find_index_of_port_number(port_num);
+      if (socket_index < 0)
+      {
+         // couldn't find this port number, so we must not be using it
+         this_ret_val = -2;
+      }
+   }
+
+   if (0 == this_ret_val)
+   {
+      if (!TCPIsConnected(g_socket_handles[socket_index]))
+      {
+         // there are no sockets communicating with this one, so do nothing
+         this_ret_val = -3;
+      }
+   }
+
+   if (0 == this_ret_val)
+   {
+      bytes_in_rx_buffer = TCPIsGetReady(g_socket_handles[socket_index]);
+      if (bytes_in_rx_buffer >= max_buffer_size)
+      {
+         // too much data to receive at once, so do nothing
+         // Note: If you're feeling clever, modify this function so that it
+         // receives the data in multiple chunks.
+         this_ret_val = -4;
+      }
+   }
+
+   if (0 == this_ret_val)
+   {
+      bytes_read = TCPGetArray(g_socket_handles[socket_index], byte_buffer, max_buffer_size);
+      if (bytes_read >= max_buffer_size)
+      {
+         // this should have been caught in the "number bytes in RX buffer"
+         // check prior to reading the buffer, so there was some kind of
+         // problem
+         this_ret_val = -5;
+      }
+      else
+      {
+         // all went well
+         this_ret_val = bytes_read;
+      }
+   }
+
+   return this_ret_val;
+}
 
