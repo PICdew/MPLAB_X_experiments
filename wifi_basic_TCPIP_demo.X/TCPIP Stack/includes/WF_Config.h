@@ -98,7 +98,7 @@
     #define MY_DEFAULT_WIFI_SECURITY_MODE       WF_SECURITY_WPA_AUTO_WITH_PASS_PHRASE
     #define MY_DEFAULT_SCAN_TYPE                WF_ACTIVE_SCAN              /* WF_ACTIVE_SCAN or WF_PASSIVE_SCAN */
     #define MY_DEFAULT_BEACON_TIMEOUT           (40)                        /* Number of beacon periods          */
-    #define MY_DEFAULT_SSID_NAME                ROUTER_SSID           /* if WF_SECURITY_WPS_PUSH_BUTTON must be "" (empty string) */
+    #define MY_DEFAULT_SSID_NAME                "BOOGER"           /* if WF_SECURITY_WPS_PUSH_BUTTON must be "" (empty string) */
     #define MY_DEFAULT_CHANNEL_LIST         {1,2,3,4,5,6,7,8,9,10,11}   /* Default channel list for FCC */
 
     /* Select Infrastructure Power Save Mode */
@@ -203,7 +203,7 @@
 
 // Default pass phrase used for WF_SECURITY_WPA_WITH_PASS_PHRASE and 
 // WF_SECURITY_WPA2_WITH_PASS_PHRASE security modes
-#define MY_DEFAULT_PSK_PHRASE               ROUTER_PASSWORD
+#define MY_DEFAULT_PSK_PHRASE               "JETSON"
 
 // If using security mode of WF_SECURITY_WPA_WITH_KEY or WF_SECURITY_WPA2_WITH_KEY, then this section 
 // must be set to  match the key for MY_DEFAULT_SSID_NAME and MY_DEFAULT_PSK_PHRASE

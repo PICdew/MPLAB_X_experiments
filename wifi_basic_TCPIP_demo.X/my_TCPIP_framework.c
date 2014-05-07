@@ -2,26 +2,34 @@
 // declarations
 #include "my_TCPIP_framework.h"
 
-// these are used to try to connect to a network and password
-// Note: These are used in WF_Config.h (in the TCPIP stack, in the "includes"
-// folder"), at lines 101 and 206, respectively.
-// Note: They are #defines instead of set by some API call because the default
-// SSID and password used by Microchip's TCPIP stack are themselves #defines,
-// and I haven't yet figured out how to use something else.  This is a crude
-// solution, but it works.
-// Note: MUST be defined BEFORE MHCP_TCPIP.h is included!
-#define ROUTER_SSID                "Christ-2.4"
-#define ROUTER_PASSWORD            "Jesus is GOD!"      // WPA2 encryption
 
-// for our portal to the Microchip TCPIP stack
-// Note: This thing is big and, in my opinion, and bit of a mess because it
-// doesn't use the Microchip API to set things up in an orderly manner.
-// Instead, it puts a lot of things together with an elegant, if obfuscated,
-// mansion of macros.
+/*
+* This macro uniquely defines this file as the main entry point.
+* There should only be one such definition in the entire project,
+* and this file must define the AppConfig variable as described below.
+*/
+#define THIS_IS_STACK_APPLICATION
+
+//// for the definition of the APP_CONFIG structure, which the TCPIP stack uses
+//// throughout the stack's lifetime
+//#include "TCPIP Stack/includes/StackTsk.h"
 //
-// My suggestion: Don't mess with it unless you want to re-write a chunk of the
-// TCPIP stack.  It appears to be heavily coupled with the rest of the stack.
-#include "MCHP_TCPIP.h"
+#define BAUD_RATE       (19200)		// bps
+
+
+// Include all headers for any enabled TCPIP Stack functions
+#include "TCPIP Stack/includes/TCPIP.h"
+
+#if defined(STACK_USE_ZEROCONF_LINK_LOCAL)
+#include "TCPIP Stack/ZeroconfLinkLocal.h"
+#endif
+#if defined(STACK_USE_ZEROCONF_MDNS_SD)
+#include "TCPIP Stack/ZeroconfMulticastDNS.h"
+#endif
+
+
+
+
 
 // use these sockets to communicate over the network
 // Note: I am making them global because I want to split up the "send" and
@@ -44,6 +52,294 @@ static TCP_SOCKET	g_socket_handles[MAX_SOCKETS];
 static unsigned int g_socket_port_numbers[MAX_SOCKETS];
 
 
+
+
+
+
+
+
+
+
+#if defined(EEPROM_CS_TRIS) || defined(SPIFLASH_CS_TRIS)
+void SaveAppConfig(const APP_CONFIG *AppConfig);
+#else
+#define SaveAppConfig(a)
+#endif
+
+// Define a header structure for validating the AppConfig data structure in EEPROM/Flash
+typedef struct
+{
+   unsigned short wConfigurationLength;	// Number of bytes saved in EEPROM/Flash (sizeof(APP_CONFIG))
+   unsigned short wOriginalChecksum;		// Checksum of the original AppConfig defaults as loaded from ROM (to detect when to wipe the EEPROM/Flash record of AppConfig due to a stack change, such as when switching from Ethernet to Wi-Fi)
+   unsigned short wCurrentChecksum;		// Checksum of the current EEPROM/Flash data.  This protects against using corrupt values if power failure occurs while writing them and helps detect coding errors in which some other task writes to the EEPROM in the AppConfig area.
+} NVM_VALIDATION_STRUCT;
+
+
+// Used for Wi-Fi assertions
+// Note: Just keep this around for now
+#define WF_MODULE_NUMBER   WF_MODULE_MAIN_DEMO
+
+// create an APP_CONFIG structure for the TCPIP stack to keep track of various
+// network detail
+// Note: The APP_CONFIG structure comes from the TCPIP stack's "includes"
+// folder, StackTsk.h, line 136.
+// Note: Appconfig is referred to, by name, in multiple places around the TCPIP
+// stack.  Therefore, we cannot decalare it static.  It must be global.  I
+// don't like it, but unless the TCPIP stack is re-written to remove all this
+// coupling, I have to live with it being global.
+APP_CONFIG AppConfig;
+
+
+// Private helper functions.
+// These may or may not be present in all applications.
+#if defined(WF_CS_TRIS)
+void WF_Connect(void);
+#if !defined(MRF24WG)
+extern BOOL gRFModuleVer1209orLater;
+#endif
+
+//??trying defining this yourself lateR??
+#if defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST)
+tPassphraseReady g_WpsPassphrase;
+#endif    /* defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST) */
+#endif
+
+
+#if defined(WF_CS_TRIS)
+// Global variables
+UINT8 ConnectionProfileID;
+#endif
+
+#if defined(WF_CS_TRIS)
+
+/*****************************************************************************
+* FUNCTION: WF_Connect
+*
+* RETURNS:  None
+*
+* PARAMS:   None
+*
+*  NOTES:   Connects to an 802.11 network.  Customize this function as needed
+*           for your application.
+*****************************************************************************/
+void WF_Connect(void)
+{
+   UINT8 channelList[] = MY_DEFAULT_CHANNEL_LIST;
+
+   /* create a Connection Profile */
+   WF_CPCreate(&ConnectionProfileID);
+
+   WF_SetRegionalDomain(MY_DEFAULT_DOMAIN);
+
+   WF_CPSetSsid(ConnectionProfileID,
+      AppConfig.MySSID,
+      AppConfig.SsidLength);
+
+   WF_CPSetNetworkType(ConnectionProfileID, MY_DEFAULT_NETWORK_TYPE);
+
+   WF_CASetScanType(MY_DEFAULT_SCAN_TYPE);
+
+
+   WF_CASetChannelList(channelList, sizeof(channelList));
+
+   // The Retry Count parameter tells the WiFi Connection manager how many attempts to make when trying
+   // to connect to an existing network.  In the Infrastructure case, the default is to retry forever so that
+   // if the AP is turned off or out of range, the radio will continue to attempt a connection until the
+   // AP is eventually back on or in range.  In the Adhoc case, the default is to retry 3 times since the
+   // purpose of attempting to establish a network in the Adhoc case is only to verify that one does not
+   // initially exist.  If the retry count was set to WF_RETRY_FOREVER in the AdHoc mode, an AdHoc network
+   // would never be established.
+   WF_CASetListRetryCount(MY_DEFAULT_LIST_RETRY_COUNT);
+
+   WF_CASetEventNotificationAction(MY_DEFAULT_EVENT_NOTIFICATION_LIST);
+
+   WF_CASetBeaconTimeout(MY_DEFAULT_BEACON_TIMEOUT);
+
+#if !defined(MRF24WG)
+   if (gRFModuleVer1209orLater)
+#else
+   {
+      // If WEP security is used, set WEP Key Type.  The default WEP Key Type is Shared Key.
+      if (AppConfig.SecurityMode == WF_SECURITY_WEP_40 || AppConfig.SecurityMode == WF_SECURITY_WEP_104)
+      {
+         WF_CPSetWepKeyType(ConnectionProfileID, MY_DEFAULT_WIFI_SECURITY_WEP_KEYTYPE);
+      }
+   }
+#endif
+
+#if defined(MRF24WG)
+   // Error check items specific to WPS Push Button mode
+#if (MY_DEFAULT_WIFI_SECURITY_MODE==WF_SECURITY_WPS_PUSH_BUTTON)
+#if !defined(WF_P2P)
+   WF_ASSERT(strlen(AppConfig.MySSID) == 0);  // SSID must be empty when using WPS
+   WF_ASSERT(sizeof(channelList) == 11);        // must scan all channels for WPS
+#endif
+
+#if (MY_DEFAULT_NETWORK_TYPE == WF_P2P)
+   WF_ASSERT(strcmp((char *)AppConfig.MySSID, "DIRECT-") == 0);
+   WF_ASSERT(sizeof(channelList) == 3);
+   WF_ASSERT(channelList[0] == 1);
+   WF_ASSERT(channelList[1] == 6);
+   WF_ASSERT(channelList[2] == 11);
+#endif
+#endif
+
+#endif /* MRF24WG */
+
+#if defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST)
+   if (AppConfig.SecurityMode == WF_SECURITY_WPA_WITH_PASS_PHRASE
+      || AppConfig.SecurityMode == WF_SECURITY_WPA2_WITH_PASS_PHRASE
+      || AppConfig.SecurityMode == WF_SECURITY_WPA_AUTO_WITH_PASS_PHRASE) {
+      WF_ConvPassphrase2Key(AppConfig.SecurityKeyLength, AppConfig.SecurityKey,
+         AppConfig.SsidLength, AppConfig.MySSID);
+      AppConfig.SecurityMode--;
+      AppConfig.SecurityKeyLength = 32;
+   }
+#if defined (MRF24WG)
+   else if (AppConfig.SecurityMode == WF_SECURITY_WPS_PUSH_BUTTON
+      || AppConfig.SecurityMode == WF_SECURITY_WPS_PIN) {
+      WF_YieldPassphrase2Host();
+   }
+#endif    /* defined (MRF24WG) */
+#endif    /* defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST) */
+
+   WF_CPSetSecurity(ConnectionProfileID,
+      AppConfig.SecurityMode,
+      AppConfig.WepKeyIndex,   /* only used if WEP enabled */
+      AppConfig.SecurityKey,
+      AppConfig.SecurityKeyLength);
+
+#if MY_DEFAULT_PS_POLL == WF_ENABLED
+   WF_PsPollEnable(TRUE);
+#if !defined(MRF24WG)
+   if (gRFModuleVer1209orLater)
+      WFEnableDeferredPowerSave();
+#endif    /* !defined(MRF24WG) */
+#else     /* MY_DEFAULT_PS_POLL != WF_ENABLED */
+   WF_PsPollDisable();
+#endif    /* MY_DEFAULT_PS_POLL == WF_ENABLED */
+
+#ifdef WF_AGGRESSIVE_PS
+#if !defined(MRF24WG)
+   if (gRFModuleVer1209orLater)
+      WFEnableAggressivePowerSave();
+#endif
+#endif
+
+#if defined(STACK_USE_UART)
+   WF_OutputConnectionInfo(&AppConfig);
+#endif
+
+#if defined(DISABLE_MODULE_FW_CONNECT_MANAGER_IN_INFRASTRUCTURE)
+   WF_DisableModuleConnectionManager();
+#endif
+
+#if defined(MRF24WG)
+   WFEnableDebugPrint(ENABLE_WPS_PRINTS | ENABLE_P2P_PRINTS);
+#endif
+   WF_CMConnect(ConnectionProfileID);
+}
+#endif /* WF_CS_TRIS */
+
+
+/*********************************************************************
+* Function:        void InitAppConfig(void)
+*
+* PreCondition:    MPFSInit() is already called.
+*
+* Input:           None
+*
+* Output:          Write/Read non-volatile config variables.
+*
+* Side Effects:    None
+*
+* Overview:        None
+*
+* Note:            None
+********************************************************************/
+// MAC Address Serialization using a MPLAB PM3 Programmer and
+// Serialized Quick Turn Programming (SQTP).
+// The advantage of using SQTP for programming the MAC Address is it
+// allows you to auto-increment the MAC address without recompiling
+// the code for each unit.  To use SQTP, the MAC address must be fixed
+// at a specific location in program memory.  Uncomment these two pragmas
+// that locate the MAC address at 0x1FFF0.  Syntax below is for MPLAB C
+// Compiler for PIC18 MCUs. Syntax will vary for other compilers.
+//#pragma romdata MACROM=0x1FFF0
+static ROM BYTE SerializedMACAddress[6] = { MY_DEFAULT_MAC_BYTE1, MY_DEFAULT_MAC_BYTE2, MY_DEFAULT_MAC_BYTE3, MY_DEFAULT_MAC_BYTE4, MY_DEFAULT_MAC_BYTE5, MY_DEFAULT_MAC_BYTE6 };
+//#pragma romdata
+
+static int InitAppConfig(const char *wifi_SSID, const char *wifi_password)
+{
+   int this_ret_val = 0;
+
+   // start by checking for input shenanigans
+   if (0 == wifi_SSID)
+   {
+      this_ret_val = -1;
+   }
+   else if (0 == wifi_password)
+   {
+      this_ret_val = -1;
+   }
+
+   // Start out zeroing all AppConfig bytes to ensure all fields are
+   // deterministic for checksum generation
+   memset((void*)&AppConfig, 0x00, sizeof(AppConfig));
+
+   AppConfig.Flags.bIsDHCPEnabled = TRUE;
+   AppConfig.Flags.bInConfigMode = TRUE;
+   memcpypgm2ram((void*)&AppConfig.MyMACAddr, (ROM void*)SerializedMACAddress, sizeof(AppConfig.MyMACAddr));
+
+   AppConfig.MyIPAddr.Val = MY_DEFAULT_IP_ADDR_BYTE1 | MY_DEFAULT_IP_ADDR_BYTE2 << 8ul | MY_DEFAULT_IP_ADDR_BYTE3 << 16ul | MY_DEFAULT_IP_ADDR_BYTE4 << 24ul;
+   AppConfig.DefaultIPAddr.Val = AppConfig.MyIPAddr.Val;
+   AppConfig.MyMask.Val = MY_DEFAULT_MASK_BYTE1 | MY_DEFAULT_MASK_BYTE2 << 8ul | MY_DEFAULT_MASK_BYTE3 << 16ul | MY_DEFAULT_MASK_BYTE4 << 24ul;
+   AppConfig.DefaultMask.Val = AppConfig.MyMask.Val;
+   AppConfig.MyGateway.Val = MY_DEFAULT_GATE_BYTE1 | MY_DEFAULT_GATE_BYTE2 << 8ul | MY_DEFAULT_GATE_BYTE3 << 16ul | MY_DEFAULT_GATE_BYTE4 << 24ul;
+   AppConfig.PrimaryDNSServer.Val = MY_DEFAULT_PRIMARY_DNS_BYTE1 | MY_DEFAULT_PRIMARY_DNS_BYTE2 << 8ul | MY_DEFAULT_PRIMARY_DNS_BYTE3 << 16ul | MY_DEFAULT_PRIMARY_DNS_BYTE4 << 24ul;
+   AppConfig.SecondaryDNSServer.Val = MY_DEFAULT_SECONDARY_DNS_BYTE1 | MY_DEFAULT_SECONDARY_DNS_BYTE2 << 8ul | MY_DEFAULT_SECONDARY_DNS_BYTE3 << 16ul | MY_DEFAULT_SECONDARY_DNS_BYTE4 << 24ul;
+
+   // Load the default NetBIOS Host Name
+   memcpypgm2ram(AppConfig.NetBIOSName, (ROM void*)MY_DEFAULT_HOST_NAME, 16);
+   FormatNetBIOSName(AppConfig.NetBIOSName);
+
+
+   // Note: In MHCP_TCPIP.h, from whence this code was derived, there is a
+   // #define check here for WF_CS_TRIS, which is a check to see if there is
+   // a clock signal (CS) pin defined.  This is defined in the TCPIP stack's
+   // "includes" directory, in "HardwareProfile.h", line 139.  Don't touch
+   // that #define because it is used in a number of different files, and
+   // since it is so widely defined, I am going to simply go without the
+   // check here.
+
+   // load the SSID name into the wifi
+   WF_ASSERT(strlen(wifi_SSID) <= sizeof(AppConfig.MySSID));
+   memcpy(AppConfig.MySSID, (ROM void*)wifi_SSID, strlen(wifi_SSID));
+   AppConfig.SsidLength = strlen(wifi_SSID);
+
+   // use WPA auto security
+   // Note: There is an explanation of the different types of security
+   // available in the TCPIP stack's "includes" directory, in WFApi.h,
+   // starting at line 513.  The explanation for
+   // "WPA auto with pass phrase" states that it will use WPA or WPA2.
+   // It will automatically choose the higher of the two depending on
+   // what the wireless access point (AP) supports.
+   AppConfig.SecurityMode = WF_SECURITY_WPA_AUTO_WITH_PASS_PHRASE;
+   memcpy(AppConfig.SecurityKey, (ROM void*)wifi_password, strlen(wifi_password));
+   AppConfig.SecurityKeyLength = strlen(wifi_password);
+}
+
+
+
+
+
+
+
+
+
+
+
+
 void TCPIP_and_wifi_stack_init(void)
 {
    int count = 0;
@@ -57,11 +353,15 @@ void TCPIP_and_wifi_stack_init(void)
    TickInit();
 
    // initialize the basic application configuration
-   InitAppConfig();
+
+   InitAppConfig("Christ-2.4", "Jesus is GOD!");
+   //InitAppConfig(g_my_router_ssid, g_my_router_password);
+
 
    // Initialize the core stack layers
    StackInit();
 
+   // we
 #if defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST)
    g_WpsPassphrase.valid = FALSE;
 #endif   /* defined(DERIVE_KEY_FROM_PASSPHRASE_IN_HOST) */
@@ -74,12 +374,12 @@ void TCPIP_keep_stack_alive(void)
    // packets and calling appropriate handlers
    StackTask();
 
-   #if defined(WF_CS_TRIS)
-      #if !defined(MRF24WG)
-         if (gRFModuleVer1209orLater)
-      #endif
-      WiFiTask();
-   #endif
+   // do wifi network...things
+   // Note: this was originally guarded by a check for WF_CS_TRIS, MRF24WG, and
+   // some kind of check for the RF module version.  This code is build
+   // specifically for the Microchip MRF24WB RF module, for which all of these
+   // checks were always true.  I deleted the checks to clean up code.
+   WiFiTask();
 
    // this tasks invokes each of the core stack application tasks
    StackApplications();
@@ -104,7 +404,7 @@ static int get_next_available_socket_index(void)
 {
    int count = 0;
    int this_ret_val = 0;
-   
+
    // check for an unused port, then use the socket of that port
    for (count = 0; count < MAX_SOCKETS; count += 1)
    {
@@ -120,7 +420,7 @@ static int get_next_available_socket_index(void)
       // no ports available
       this_ret_val = -1;
    }
-   
+
    return this_ret_val;
 }
 
@@ -138,13 +438,13 @@ static int find_index_of_port_number(unsigned int port_num)
          break;
       }
    }
-   
+
    if (MAX_SOCKETS == count)
    {
       // didn't find it
       this_ret_val = -1;
    }
-   
+
    return this_ret_val;
 }
 
@@ -246,50 +546,50 @@ int TCPIP_is_there_a_connection_on_port(unsigned int port_num)
 
 int TCPIP_bytes_in_TX_FIFO(unsigned int port_num)
 {
-   int this_ret_val = 0; 
+   int this_ret_val = 0;
    int socket_index = 0;
-   
+
    socket_index = find_index_of_port_number(port_num);
    if (socket_index < 0)
    {
       // couldn't find this port number, so we must not be using it
       this_ret_val = -1;
    }
-   
+
    if (0 == this_ret_val)
    {
       // check the space in the TX buffer
-      // Note: The function "TCP is put ready" only uses the socket handle to 
-      // perform some kind of synchronization before checking the number of 
-      // bytes available in the TX FIFO.  The number of bytes available is 
-      // actually independent of the socket in use, despite what the argument 
+      // Note: The function "TCP is put ready" only uses the socket handle to
+      // perform some kind of synchronization before checking the number of
+      // bytes available in the TX FIFO.  The number of bytes available is
+      // actually independent of the socket in use, despite what the argument
       // to the function suggests.  I think that the socket handle argument is
       // only there to ensure that a socket-port combo is active.
       this_ret_val = TCPIsPutReady(g_socket_handles[socket_index]);
    }
-   
+
    return this_ret_val;
 }
 
 int TCPIP_bytes_in_RX_FIFO(unsigned int port_num)
 {
-   int this_ret_val = 0; 
+   int this_ret_val = 0;
    int socket_index = 0;
-   
+
    socket_index = find_index_of_port_number(port_num);
    if (socket_index < 0)
    {
       // couldn't find this port number, so we must not be using it
       this_ret_val = -1;
    }
-   
+
    if (0 == this_ret_val)
    {
       // check the space in the TX buffer
       // Note: See note in "TCPIP bytes in TX FIFO".
       this_ret_val = TCPIsGetReady(g_socket_handles[socket_index]);
    }
-   
+
    return this_ret_val;
 }
 
