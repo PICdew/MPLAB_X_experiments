@@ -122,7 +122,9 @@ int main(void)
    UINT8 ip_2 = 0;
    UINT8 ip_3 = 0;
    UINT8 ip_4 = 0;
-   char message[MESSAGE_BUFFER_SIZE_BYTES];
+   char cls_message[CLS_LINE_SIZE + 1];
+   unsigned char rx_buffer[MESSAGE_BUFFER_SIZE_BYTES];
+   unsigned char tx_buffer[MESSAGE_BUFFER_SIZE_BYTES];
    
    gMillisecondsInOperation = 0;
    g_TCPIP_service_can_start = FALSE;
@@ -188,8 +190,8 @@ int main(void)
          // the router specified by the SSID in my TCPIP framework code
          break;
       }
-      snprintf(message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
-      myI2CWriteToLine(I2C2, message, 2);
+      snprintf(cls_message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
+      myI2CWriteToLine(I2C2, cls_message, 2);
 
       // delay for a little bit so that the LED doesn't blink too fast to see
       delayMS(50);
@@ -202,21 +204,23 @@ int main(void)
    generic_ret_val = TCPIP_open_socket(SERVER_PORT);
    if (generic_ret_val < 0)
    {
-      snprintf(message, CLS_LINE_SIZE, "port %d fail on", SERVER_PORT);
+      // bad, so print a message and hang here forever (or reset or power loss,
+      // whichever comes first)
+      snprintf(cls_message, CLS_LINE_SIZE, "port %d fail on", SERVER_PORT);
       while(1);
    }
    else
    {
-      snprintf(message, CLS_LINE_SIZE, "port %d open on", SERVER_PORT);
+      snprintf(cls_message, CLS_LINE_SIZE, "port %d open on", SERVER_PORT);
    }
-   myI2CWriteToLine(I2C2, message, 1);
+   myI2CWriteToLine(I2C2, cls_message, 1);
    
    // now the new IP address
-   memset(message, (int)' ', CLS_LINE_SIZE);
-   message[CLS_LINE_SIZE - 1] = 0;
-   myI2CWriteToLine(I2C2, message, 2);
-   snprintf(message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
-   myI2CWriteToLine(I2C2, message, 2);
+   memset(cls_message, (int)' ', CLS_LINE_SIZE);
+   cls_message[CLS_LINE_SIZE - 1] = 0;
+   myI2CWriteToLine(I2C2, cls_message, 2);
+   snprintf(cls_message, CLS_LINE_SIZE, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
+   myI2CWriteToLine(I2C2, cls_message, 2);
 
 
    // NOW begin your custom code
@@ -258,8 +262,8 @@ int main(void)
          // Note: If the message is longer than a single CLS line, that is ok.
          // It will just start overwriting the last character until the string
          // is finished.
-         memset(message, 0, MESSAGE_BUFFER_SIZE_BYTES);
-         byte_count = TCPIP_basic_receive(SERVER_PORT, message, MESSAGE_BUFFER_SIZE_BYTES);
+         memset(rx_buffer, 0, MESSAGE_BUFFER_SIZE_BYTES);
+         byte_count = TCPIP_basic_receive(SERVER_PORT, rx_buffer, MESSAGE_BUFFER_SIZE_BYTES);
          if (byte_count > CLS_LINE_SIZE)
          {
             // ??do something if it is too long to print on a single CLS line? no? do we care??
@@ -270,19 +274,20 @@ int main(void)
          }
 
          // chop off the return key, which Tera Term used as a trigger to send
-         // the typed text and which included that return key
-         message[byte_count - 2] = 0;
-         myI2CWriteToLine(I2C2, message, 2);
+         // the typed text and which included that return key, and display it
+         // to the CLS
+         rx_buffer[byte_count - 2] = 0;
+         snprintf(cls_message, MESSAGE_BUFFER_SIZE_BYTES, "%s", rx_buffer);
+         myI2CWriteToLine(I2C2, cls_message, 2);
 
-         // now spit the message back out, unaltered except for the null
-         // terminator and a new line character
-         // Note: The message buffer is all 0s except for the received
-         // characters because of the memset that I did earlier, so I can just
-         // add the new line and not worry about having to add another null
-         // terminator.
-         message[byte_count - 2] = '\r';
-         message[byte_count - 1] = '\n';
-         TCPIP_basic_send(SERVER_PORT, message, byte_count);
+         // now spit the message back out, formatted to appear visually
+         // different from the sent message
+         // Note: Cross your fingers and hope that the incoming message wasn't 
+         // so big that the new format will be truncated in the transmit 
+         // buffer.
+         memset(tx_buffer, 0, MESSAGE_BUFFER_SIZE_BYTES);
+         snprintf(tx_buffer, MESSAGE_BUFFER_SIZE_BYTES, "\r\n--You sent: '%s'\r\n", rx_buffer);
+         TCPIP_basic_send(SERVER_PORT, tx_buffer, strlen(tx_buffer));
       }
 
       // delay for a little bit so that the LED doesn't blink too fast to see
