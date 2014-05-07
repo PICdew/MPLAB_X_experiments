@@ -2,6 +2,17 @@
 // declarations
 #include "my_TCPIP_framework.h"
 
+// these are used to try to connect to a network and password
+// Note: These are used in WF_Config.h (in the TCPIP stack, in the "includes"
+// folder"), at lines 101 and 206, respectively.
+// Note: They are #defines instead of set by some API call because the default
+// SSID and password used by Microchip's TCPIP stack are themselves #defines,
+// and I haven't yet figured out how to use something else.  This is a crude
+// solution, but it works.
+// Note: MUST be defined BEFORE MHCP_TCPIP.h is included!
+#define ROUTER_SSID                "Christ-2.4"
+#define ROUTER_PASSWORD            "Jesus is GOD!"      // WPA2 encryption
+
 // for our portal to the Microchip TCPIP stack
 // Note: This thing is big and, in my opinion, and bit of a mess because it
 // doesn't use the Microchip API to set things up in an orderly manner.
@@ -11,16 +22,6 @@
 // My suggestion: Don't mess with it unless you want to re-write a chunk of the
 // TCPIP stack.  It appears to be heavily coupled with the rest of the stack.
 #include "MCHP_TCPIP.h"
-
-// these are used to try to connect to a network and password
-// Note: These are used in WF_Config.h (in the TCPIP stack, in the "includes"
-// folder"), at lines 101 and 206, respectively.
-// Note: They are #defines instead of set by some API call because the default
-// SSID and password used by Microchip's TCPIP stack are themselves #defines,
-// and I haven't yet figured out how to use something else.  This is a crude
-// solution, but it works.
-#define ROUTER_SSID                "Christ-2.4"
-#define ROUTER_PASSWORD            "Jesus is GOD!"      // WPA2 encryption
 
 // use these sockets to communicate over the network
 // Note: I am making them global because I want to split up the "send" and
@@ -93,10 +94,10 @@ void TCPIP_get_IP_address(unsigned char *ip_first, unsigned char *ip_second, uns
    // significant bit position.
    // Ex: IP address is 169.254.1.1.  Then "169" is the first byte, "254" is
    // 8 bits "higher", etc.
-   ip_fourth = AppConfig.MyIPAddr.byte.MB;     // highest byte (??MB??), fourth number
-   ip_third = AppConfig.MyIPAddr.byte.UB;     // middle high byte (??UB??), third number
-   ip_second = AppConfig.MyIPAddr.byte.HB;     // middle low byte (??HB??), second number
-   ip_first = AppConfig.MyIPAddr.byte.LB;     // lowest byte, first number
+   *ip_fourth = AppConfig.MyIPAddr.byte.MB;     // highest byte (??MB??), fourth number
+   *ip_third = AppConfig.MyIPAddr.byte.UB;     // middle high byte (??UB??), third number
+   *ip_second = AppConfig.MyIPAddr.byte.HB;     // middle low byte (??HB??), second number
+   *ip_first = AppConfig.MyIPAddr.byte.LB;     // lowest byte, first number
 }
 
 static int get_next_available_socket_index(void)
@@ -175,7 +176,7 @@ int TCPIP_open_socket(unsigned int port_num)
    {
       // this socket handle must be available, so try to open a handle to it
       g_socket_handles[socket_index] = TCPOpen(0, TCP_OPEN_SERVER, port_num, TCP_PURPOSE_GENERIC_TCP_SERVER);
-      if (INVALID_SOCKET = g_socket_handles[socket_index])
+      if (INVALID_SOCKET == g_socket_handles[socket_index])
       {
          // bad
          this_ret_val = -3;
@@ -211,6 +212,33 @@ int TCPIP_close_socket(unsigned int port_num)
       // clients.
       TCPClose(g_socket_handles[socket_index]);
       g_socket_port_numbers[socket_index] = 0;
+   }
+
+   return this_ret_val;
+}
+
+int TCPIP_is_there_a_connection_on_port(unsigned int port_num)
+{
+   int this_ret_val = 0;
+   int socket_index = 0;
+
+   socket_index = find_index_of_port_number(port_num);
+   if (socket_index < 0)
+   {
+      // couldn't find this port number, so we must not be using it
+      this_ret_val = -1;
+   }
+
+   if (0 == this_ret_val)
+   {
+      if (TCPIsConnected(g_socket_handles[socket_index]))
+      {
+         this_ret_val = 1;
+      }
+      else
+      {
+         // leave it at 0
+      }
    }
 
    return this_ret_val;

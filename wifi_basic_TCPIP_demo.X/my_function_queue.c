@@ -29,9 +29,9 @@ void function_queue_init(void)
    g_curr_node_ptr = &(g_function_queue[0]);
 }
 
-void execute_next_function_in_queue(void)
+void execute_functions_in_queue(void)
 {
-   if (0 != g_curr_node_ptr->function_ptr)
+   while (0 != g_curr_node_ptr->function_ptr)
    {
       // execute the function, then erase the pointer to empty it out so that
       // other functions can be queued up
@@ -40,10 +40,6 @@ void execute_next_function_in_queue(void)
 
       // jump to the next item in the queue
       g_curr_node_ptr = g_curr_node_ptr->next_ptr;
-   }
-   else
-   {
-      // no function assigned, so queue must be empty and we will do nothing
    }
 }
 

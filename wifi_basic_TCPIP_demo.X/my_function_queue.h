@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
    void function_queue_init(void);
-   void execute_next_function_in_queue(void);
+   void execute_functions_in_queue(void);
    int add_function_to_queue(void *function_ptr);
 
 
