@@ -109,20 +109,15 @@ int main(void)
    PORTSetPinsDigitalOut(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
    PORTClearBits(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
 
-   // ------------------------ Configure WiFi CS/SS Pin -----------------------
-#if defined(WF_CS_TRIS)
-   WF_CS_IO = 1;
-   WF_CS_TRIS = 0;
-#endif
 
-   // Disable JTAG port so we get our I/O pins back, but first
-   // wait 50ms so if you want to reprogram the part with
-   // JTAG, you'll still have a tiny window before JTAG goes away.
-   // The PIC32 Starter Kit debuggers use JTAG and therefore must not
-   // disable JTAG.
-   //DelayMs(50);
-   delayMS(50);
-   // -------------------------------------------------------------------------
+//   // Disable JTAG port so we get our I/O pins back, but first
+//   // wait 50ms so if you want to reprogram the part with
+//   // JTAG, you'll still have a tiny window before JTAG goes away.
+//   // The PIC32 Starter Kit debuggers use JTAG and therefore must not
+//   // disable JTAG.
+//   //DelayMs(50);
+//   delayMS(50);
+//   // -------------------------------------------------------------------------
 
    setupI2C(I2C2);
    myI2CWriteToLine(I2C2, "I2C init good!", 1);
@@ -130,7 +125,8 @@ int main(void)
    function_queue_init();
    myI2CWriteToLine(I2C2, "fnct queue good", 1);
 
-   TCPIP_and_wifi_stack_init("my_wifi_network_ssid", "my_wifi_network_pass_phrase");
+   //TCPIP_and_wifi_stack_init("my_wifi_network_ssid", "my_wifi_network_pass_phrase");
+   TCPIP_and_wifi_stack_init("Christ-2.4", "Jesus is GOD!");
    myI2CWriteToLine(I2C2, "TCPIP init good", 1);
    g_TCPIP_service_can_start = TRUE;
 

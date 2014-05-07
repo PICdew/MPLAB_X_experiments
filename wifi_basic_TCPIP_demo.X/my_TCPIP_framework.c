@@ -306,6 +306,12 @@ void TCPIP_and_wifi_stack_init(const char *wifi_SSID, const char *wifi_password)
       g_socket_port_numbers[count] = 0;
    }
 
+   // ??what does this do? apparently it works without it?
+//#if defined(WF_CS_TRIS)
+//   WF_CS_IO = 1;
+//   WF_CS_TRIS = 0;
+//#endif
+
    // open the timer that the wifi module will use for it's internal tick
    TickInit();
 

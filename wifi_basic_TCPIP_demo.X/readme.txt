@@ -321,3 +321,13 @@ Consult the book of firmware!
       Boston, mine brethren!
 
 
+What if I want to use an RTOS like FreeRTOS?
+   In that case, remove timer 1 (FreeRTOS uses timer 1 for its scheduler), and
+   instead of using the function queue, call the TCPIP stack servicing function
+   to a task that runs every 50 milliseconds.
+   
+   You can also move a lot of the code out of main() and into various setup 
+   tasks, but I strongly advise you to treat the I2C bus as a resource locked 
+   by a mutex, because if an I2C communication is attempted while another one 
+   was already in progress, then my I2C functions will simply hang until the 
+   I2C line goes idle, which of course it won't because it is busy.
