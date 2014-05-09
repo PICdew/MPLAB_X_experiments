@@ -110,15 +110,6 @@ int main(void)
    PORTClearBits(IOPORT_B, BIT_10 | BIT_11 | BIT_12 | BIT_13);
 
 
-//   // Disable JTAG port so we get our I/O pins back, but first
-//   // wait 50ms so if you want to reprogram the part with
-//   // JTAG, you'll still have a tiny window before JTAG goes away.
-//   // The PIC32 Starter Kit debuggers use JTAG and therefore must not
-//   // disable JTAG.
-//   //DelayMs(50);
-//   delayMS(50);
-//   // -------------------------------------------------------------------------
-
    setupI2C(I2C2);
    myI2CWriteToLine(I2C2, "I2C init good!", 1);
 
@@ -217,7 +208,8 @@ int main(void)
 //         myI2CWriteToLine(I2C2, "bats Bats BATS!", 2);
 
          // missige for you, sire
-         myI2CWriteToLine(I2C2, "missige sire:", 1);
+         snprintf(cls_message, CLS_LINE_SIZE, "RX bytes: %d", byte_count);
+         myI2CWriteToLine(I2C2, cls_message, 1);
 
          // clear out the message buffer, get the missige, then display it on
          // the CLS pmod, line 2 (because I want "missige sire:" to display on
@@ -236,21 +228,17 @@ int main(void)
             // do something?
          }
 
-         // chop off the return key, which Tera Term used as a trigger to send
-         // the typed text and which included that return key, and display it
-         // to the CLS
-         rx_buffer[byte_count - 2] = 0;
+         // forcefully null terminate the receive buffer to make sure that
+         // formated string (%s) procede without incident
+         // Note: Chop off the last two bytes, which are the return carriage
+         // and new line characters that Tera Term sends when the return key is
+         // pressed.
+         // Note: If not using Tera Term, do not chop off the last two bytes
+         // unless you know that the sending program appends unwanted
+         // characters or other bytes to the end.
+         //rx_buffer[byte_count - 2] = 0;
+         rx_buffer[byte_count] = 0;
          snprintf(cls_message, CLS_LINE_SIZE, "%s", rx_buffer);
-         
-         // null terminate the end of the string
-         if (byte_count < CLS_LINE_SIZE)
-         {
-            cls_message[byte_count - 1] = 0;
-         }
-         else
-         {
-            cls_message[CLS_LINE_SIZE - 1] = 0;
-         }
          myI2CWriteToLine(I2C2, cls_message, 2);
 
          // now spit the message back out, formatted to appear visually
