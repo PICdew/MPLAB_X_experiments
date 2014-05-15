@@ -297,10 +297,10 @@ int main(void)
          ms_count_at_max = gMillisecondsInOperation;
       }
 
-//      snprintf(cls_message, CLS_LINE_SIZE, "%max=%d at=%d", max_diff_ms, ms_count_at_max);
-//      myI2CWriteToLine(I2C2, cls_message, 1);
-//      snprintf(cls_message, CLS_LINE_SIZE, "curr=%d, avg=%d", diff_ms, avg_diff_ms);
-//      myI2CWriteToLine(I2C2, cls_message, 2);
+      snprintf(cls_message, CLS_LINE_SIZE, "%max=%d at=%d", max_diff_ms, ms_count_at_max);
+      myI2CWriteToLine(I2C2, cls_message, 1);
+      snprintf(cls_message, CLS_LINE_SIZE, "curr=%d, avg=%d", diff_ms, avg_diff_ms);
+      myI2CWriteToLine(I2C2, cls_message, 2);
 
 
 

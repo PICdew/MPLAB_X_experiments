@@ -14,7 +14,7 @@ extern "C"
 #include <stdio.h>                  // for snprintf(...)
 }
 
-#include "../my_framework/my_CPP_I2C_handler.h"
+#include "../../github_my_MX4cK_framework/my_CPP_I2C_handler.h"
 
 
 // ------------------ Configuration Oscillators --------------------------------
@@ -50,7 +50,7 @@ extern "C"
 // Note: This timer is quite demanding on the system because of how often it
 // triggers, so it will only be selectively turned on and off.
 #define T2_PS                 16
-#define T2_TRIGGERS_PER_SEC   10000
+#define T2_TRIGGERS_PER_SEC   100000
 #define T2_TICK_PR            SYSTEM_CLOCK/PB_DIV/T2_PS/T2_TRIGGERS_PER_SEC
 #define T2_OPEN_CONFIG        T2_ON | T2_SOURCE_INT | T2_PS_1_16
 
@@ -104,7 +104,7 @@ extern "C" void __ISR(_TIMER_1_VECTOR, IPL7AUTO) Timer1Handler(void)
          // queue up any any I2C communication in this interval
       }
    }
-   
+
    if (0 == g_milliseconds_in_operation % 20)
 
 
@@ -170,11 +170,13 @@ extern "C" void __ISR(_TIMER_2_VECTOR, IPL7AUTO) Timer2Handler(void)
       //if (g_pin_state != 0)
       if ((g_port_state & RECEIVER_PIN_1) != 0)
       {
-         g_receiver_pin_1_count_on += 1;
+         //g_receiver_pin_1_count_on += 1;
+         PORTSetBits(IOPORT_G, BIT_12);
       }
       else
       {
-         g_receiver_pin_1_count_off += 1;
+         PORTClearBits(IOPORT_G, BIT_12);
+         //g_receiver_pin_1_count_off += 1;
       }
 
       //g_pin_state = g_port_state & RECEIVER_PIN_2;
@@ -263,8 +265,8 @@ int main(void)
    // open the port pins to read the receiver's data
    PORTSetPinsDigitalIn(IOPORT_E, RECEIVER_PIN_1 | RECEIVER_PIN_2);// | RECEIVER_PIN_3 | RECEIVER_PIN_4);
 
-   //PORTSetPinsDigitalOut(IOPORT_G, BIT_12);
-   //PORTClearBits(IOPORT_G, BIT_12);
+   PORTSetPinsDigitalOut(IOPORT_G, BIT_12);
+   PORTClearBits(IOPORT_G, BIT_12);
 
 
    my_i2c_handler i2c_ref = my_i2c_handler::get_instance();
@@ -280,17 +282,17 @@ int main(void)
    snprintf(message, CLS_LINE_SIZE, "receiver synchronized");
    i2c_ref.CLS_write_to_line(I2C2, message, 1);
 
-   ConfigIntTimer1(T1_INT_ON | T1_INT_PRIOR_2);
+   //ConfigIntTimer1(T1_INT_ON | T1_INT_PRIOR_2);
 
    while(1)
    {
       PORTToggleBits(IOPORT_B, BIT_12);
 
       //snprintf(message, CLS_LINE_SIZE, "%x", g_port_state);
-      snprintf(message, CLS_LINE_SIZE, "1=%.3f|2=%.3f", g_receiver_pin_1_fractional_count_on, g_receiver_pin_2_fractional_count_on);
-      i2c_ref.CLS_write_to_line(I2C2, message, 1);
-      snprintf(message, CLS_LINE_SIZE, "3=%.3f|4=%.3f", g_receiver_pin_3_fractional_count_on, g_receiver_pin_4_fractional_count_on);
-      i2c_ref.CLS_write_to_line(I2C2, message, 2);
+//      snprintf(message, CLS_LINE_SIZE, "1=%.3f|2=%.3f", g_receiver_pin_1_fractional_count_on, g_receiver_pin_2_fractional_count_on);
+//      i2c_ref.CLS_write_to_line(I2C2, message, 1);
+//      snprintf(message, CLS_LINE_SIZE, "3=%.3f|4=%.3f", g_receiver_pin_3_fractional_count_on, g_receiver_pin_4_fractional_count_on);
+//      i2c_ref.CLS_write_to_line(I2C2, message, 2);
 
 //      snprintf(message, CLS_LINE_SIZE, "x = '%d'", g_milliseconds_in_operation);
 //      i2c_ref.CLS_write_to_line(I2C2, message, 1);
