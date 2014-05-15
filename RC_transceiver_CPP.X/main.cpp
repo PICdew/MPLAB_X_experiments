@@ -60,7 +60,7 @@ extern "C"
 #define RECEIVER_PIN_3  BIT_2
 #define RECEIVER_PIN_4  BIT_3
 
-unsigned int gMillisecondsInOperation;
+unsigned int g_milliseconds_in_operation;
 unsigned int g_10_microsecond_counter;
 bool g_is_synchronized;
 
@@ -84,9 +84,31 @@ float g_receiver_pin_4_fractional_count_on;
 // program state.
 extern "C" void __ISR(_TIMER_1_VECTOR, IPL7AUTO) Timer1Handler(void)
 {
-   gMillisecondsInOperation++;
+   g_milliseconds_in_operation++;
 
-   if (0 == (gMillisecondsInOperation % 20))
+   switch (g_milliseconds_in_operation % 20)
+   {
+      case 0:
+      {
+         // beginning of PWM cycle, so turn the signal reading interrupt on
+         break;
+      }
+      case 2:
+      {
+         // the PWM signals will be hi for 2ms at most, so turn off the signal
+         // reading interrupt to conserve cpu cycles, then queue up the signal
+         // processing function
+      }
+      case 5:
+      {
+         // queue up any any I2C communication in this interval
+      }
+   }
+   
+   if (0 == g_milliseconds_in_operation % 20)
+
+
+   if (0 == (g_milliseconds_in_operation % 20))
    {
       g_receiver_pin_1_fractional_count_on = (float)g_receiver_pin_1_count_on / (g_receiver_pin_1_count_on + g_receiver_pin_1_count_off);
       g_receiver_pin_2_fractional_count_on = (float)g_receiver_pin_2_count_on / (g_receiver_pin_2_count_on + g_receiver_pin_2_count_off);
@@ -195,8 +217,8 @@ extern "C" void __ISR(_TIMER_2_VECTOR, IPL7AUTO) Timer2Handler(void)
 
 void delayMS(unsigned int milliseconds)
 {
-   unsigned int millisecondCount = gMillisecondsInOperation;
-   while ((gMillisecondsInOperation - millisecondCount) < milliseconds);
+   unsigned int millisecondCount = g_milliseconds_in_operation;
+   while ((g_milliseconds_in_operation - millisecondCount) < milliseconds);
 }
 
 
@@ -207,7 +229,7 @@ int main(void)
 {
    int i = 0;
    char message[CLS_LINE_SIZE];
-   gMillisecondsInOperation = 0;
+   g_milliseconds_in_operation = 0;
    g_10_microsecond_counter = 0;
    g_is_synchronized = false;
    g_port_state = 0;
@@ -270,7 +292,7 @@ int main(void)
       snprintf(message, CLS_LINE_SIZE, "3=%.3f|4=%.3f", g_receiver_pin_3_fractional_count_on, g_receiver_pin_4_fractional_count_on);
       i2c_ref.CLS_write_to_line(I2C2, message, 2);
 
-//      snprintf(message, CLS_LINE_SIZE, "x = '%d'", gMillisecondsInOperation);
+//      snprintf(message, CLS_LINE_SIZE, "x = '%d'", g_milliseconds_in_operation);
 //      i2c_ref.CLS_write_to_line(I2C2, message, 1);
 
 //      snprintf(message, CLS_LINE_SIZE, "y = '%d'", g_10_microsecond_counter);

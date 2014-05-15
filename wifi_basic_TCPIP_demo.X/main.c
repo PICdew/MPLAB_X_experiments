@@ -5,10 +5,10 @@
 
 #include <stdio.h>
 
-#include "my_TCPIP_framework.h"
+//#include "my_TCPIP_framework.h"
 
-#include "my_i2c_stuff.h"
-#include "my_function_queue.h"
+//#include "../my_framework/my_C_I2C_handler.h"
+//#include "../my_framework/my_function_queue.h"
 
 
 
