@@ -1,5 +1,5 @@
 /*
- * File:   my_I2C_handler.h
+ * File:   my_CPP_I2C_handler.h
  * Author: John
  *
  * Created on April 21, 2014, 5:40 PM
@@ -80,6 +80,7 @@ private:
    bool m_temp_on_i2c_X_has_been_initialized[I2C_NUMBER_OF_MODULES];
    bool m_accel_on_i2c_X_has_been_initialized[I2C_NUMBER_OF_MODULES];
    bool m_gyro_on_i2c_X_has_been_initialized[I2C_NUMBER_OF_MODULES];
+   unsigned int m_pb_clock_on_i2c_X[I2C_NUMBER_OF_MODULES];
 };
 
 
