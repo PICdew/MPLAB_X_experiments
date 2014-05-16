@@ -21,10 +21,10 @@ public:
    int send_processed_signals_to_servos_and_motors();
 
    int get_avg_high_counts_for_200ms(
-      unsigned int* pin_1_count,
-      unsigned int* pin_2_count,
-      unsigned int* pin_3_count,
-      unsigned int* pin_4_count);
+      unsigned int *pin_1_count_ptr,
+      unsigned int *pin_2_count_ptr,
+      unsigned int *pin_3_count_ptr,
+      unsigned int *pin_4_count_ptr);
 
 private:
    transceiver_control();

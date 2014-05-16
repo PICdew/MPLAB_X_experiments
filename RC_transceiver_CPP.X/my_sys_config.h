@@ -31,7 +31,7 @@ extern "C"
 // whole number.
 // Note: This timer is quite demanding on the system because of how often it
 // triggers, so it will only be selectively turned on and off.
-#define TRANSCEIVER_TIMERS_TRIGGERS_PER_SEC   10000
+#define TRANSCEIVER_TIMERS_TRIGGERS_PER_SEC   50000
 
 #define T2_PS                 16
 #define T2_TICK_PR            SYSTEM_CLOCK/PB_DIV/T2_PS/TRANSCEIVER_TIMERS_TRIGGERS_PER_SEC

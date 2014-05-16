@@ -29,11 +29,6 @@ typedef struct servo_pin_data
 } SERVO_PIN_DATA;
 static SERVO_PIN_DATA g_servo_pin_data_arr[NUM_SERVO_PINS];
 
-//static int g_receiver_pin_1_high_count;
-//static int g_receiver_pin_2_high_count;
-//static int g_receiver_pin_3_high_count;
-//static int g_receiver_pin_4_high_count;
-
 
 // timer 2 reads from the RC receiver and is responsible for synchronizing
 // with the start of the PWM cycle emitted by the RC receiver
@@ -201,15 +196,6 @@ int transceiver_control::do_not_return_until_start_of_20_ms_pwm_cycle(void)
       {
          curr_some_pin_state = g_receiver_port_state & RECEIVER_PIN_1;
 
-         if (curr_some_pin_state != 0)
-         {
-            this_ret_val = 0;
-         }
-         else
-         {
-            this_ret_val = 1;
-         }
-
          if ((curr_some_pin_state != 0) && (0 == prev_some_pin_state))
          {
             break;
@@ -342,10 +328,10 @@ int transceiver_control::send_processed_signals_to_servos_and_motors()
 }
 
 int transceiver_control::get_avg_high_counts_for_200ms(
-   unsigned int* pin_1_count_ptr,
-   unsigned int* pin_2_count_ptr,
-   unsigned int* pin_3_count_ptr,
-   unsigned int* pin_4_count_ptr)
+   unsigned int *pin_1_count_ptr,
+   unsigned int *pin_2_count_ptr,
+   unsigned int *pin_3_count_ptr,
+   unsigned int *pin_4_count_ptr)
 {
    int this_ret_val = 0;
    unsigned int max_read_timer_trigger_counts = 0;
@@ -358,15 +344,15 @@ int transceiver_control::get_avg_high_counts_for_200ms(
    {
       this_ret_val = -2;
    }
-   else if(0 == pin_1_count_ptr)
+   else if(0 == pin_2_count_ptr)
    {
       this_ret_val = -3;
    }
-   else if(0 == pin_1_count_ptr)
+   else if(0 == pin_3_count_ptr)
    {
       this_ret_val = -4;
    }
-   else if(0 == pin_1_count_ptr)
+   else if(0 == pin_4_count_ptr)
    {
       this_ret_val = -5;
    }
@@ -377,7 +363,7 @@ int transceiver_control::get_avg_high_counts_for_200ms(
       this->reset_pin_variables();
 
       // wait for synchronization with the next 20ms cycle
-      this->do_not_return_until_start_of_20_ms_pwm_cycle();
+      //this->do_not_return_until_start_of_20_ms_pwm_cycle();
 
       // enable the read timer's interrupt
       ConfigIntTimer2(T2_INT_CONFIG_ON);
@@ -392,10 +378,11 @@ int transceiver_control::get_avg_high_counts_for_200ms(
 
       // the average high count will be the high count divided by the number of
       // 20ms cycles
+      // Note: This function is for 200ms, so we can hard code 10x 20ms cycles.
       *pin_1_count_ptr = g_receiver_pin_data_arr[0].high_count / 10;
-      *pin_2_count_ptr = g_receiver_pin_data_arr[2].high_count / 10;
-      *pin_3_count_ptr = g_receiver_pin_data_arr[3].high_count / 10;
-      *pin_4_count_ptr = g_receiver_pin_data_arr[4].high_count / 10;
+      *pin_2_count_ptr = g_receiver_pin_data_arr[1].high_count / 10;
+      *pin_3_count_ptr = g_receiver_pin_data_arr[2].high_count / 10;
+      *pin_4_count_ptr = g_receiver_pin_data_arr[3].high_count / 10;
    }
 
    return this_ret_val;

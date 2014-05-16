@@ -60,6 +60,11 @@ void delay_ms(unsigned int milliseconds)
 int main(void)
 {
    int i = 0;
+   unsigned int pin_1_count = 0;
+   unsigned int pin_2_count = 0;
+   unsigned int pin_3_count = 0;
+   unsigned int pin_4_count = 0;
+   unsigned int port_state = 0;
    char message[CLS_LINE_SIZE];
 
    // open the timers, but do not turn on their interrupts yet
@@ -89,20 +94,24 @@ int main(void)
 
    while(1)
    {
-      transceiver_control_ref.do_not_return_until_start_of_20_ms_pwm_cycle();
+//      port_state = PORTRead(IOPORT_E);
+//      if ((port_state & RECEIVER_PIN_4) != 0)
+//      {
+//         PORTSetBits(IOPORT_B, BIT_10);
+//      }
+//      else
+//      {
+//         PORTClearBits(IOPORT_B, BIT_10);
+//      }
+      
+      //transceiver_control_ref.do_not_return_until_start_of_20_ms_pwm_cycle();
+      transceiver_control_ref.get_avg_high_counts_for_200ms(&pin_1_count, &pin_2_count, &pin_3_count, &pin_4_count);
       PORTToggleBits(IOPORT_B, BIT_12);
 
-      snprintf(message, CLS_LINE_SIZE, "i = %d", i);
+      snprintf(message, CLS_LINE_SIZE, "1=%d|2=%d", pin_1_count, pin_2_count);
+      i2c_ref.CLS_write_to_line(I2C2, message, 1);
+      snprintf(message, CLS_LINE_SIZE, "3=%d|4=%d", pin_3_count, pin_4_count);
       i2c_ref.CLS_write_to_line(I2C2, message, 2);
-      i += 1;
-
-
-
-      //snprintf(message, CLS_LINE_SIZE, "%x", g_port_state);
-//      snprintf(message, CLS_LINE_SIZE, "1=%.3f|2=%.3f", g_receiver_pin_1_fractional_count_on, g_receiver_pin_2_fractional_count_on);
-//      i2c_ref.CLS_write_to_line(I2C2, message, 1);
-//      snprintf(message, CLS_LINE_SIZE, "3=%.3f|4=%.3f", g_receiver_pin_3_fractional_count_on, g_receiver_pin_4_fractional_count_on);
-//      i2c_ref.CLS_write_to_line(I2C2, message, 2);
 
 //      snprintf(message, CLS_LINE_SIZE, "x = '%d'", g_milliseconds_in_operation);
 //      i2c_ref.CLS_write_to_line(I2C2, message, 1);
